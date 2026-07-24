@@ -54,7 +54,7 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 | 4 | **TUI, not a VS Code extension** | Editor-agnostic, works over SSH. Not "because people live in VS Code" — that argument points at an extension. |
 | 5 | **Scroll depth is cut** | Marketer feature. Needs long content pages and per-page volume. Neither exists. |
 | 6 | **Journey maps are cut** | Need ~500+ sessions/week to be anything but noise. Reframed to funnels, then cut too — a funnel at n=8 fails the same test. |
-| 7 | **No custom collector** | Do not build ingest infrastructure. Cloudflare's GraphQL API is already available and needs no snippet. |
+| 7 | **No custom collector** | Do not build ingest infrastructure. ~~Cloudflare GraphQL~~ → **deploy Umami** (see Phase 0 result). Deploying a collector is not writing one. |
 | 8 | **Streams, not aggregates** | Aggregates need volume. Streams don't. "Last 50 visits: what they hit, where from, what they did" is honest at any n, trivially a local table, and directly agent-queryable. |
 | 9 | **Till is not the target user** | No personal site has meaningful traffic. Dogfooding unavailable — acceptable now that this is a portfolio piece. |
 
@@ -64,24 +64,45 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 
 - Biggest personal site shows **68 unique visitors / 24h** in Cloudflare, but **245 total requests** — 3.6 req/visitor, flat overnight, peaking at 4 AM. **Likely mostly bots.** Real human sessions probably single digits/day. ← *unverified*
 - Low volume is now a **feature constraint, not a blocker** — it forces the stream design, which is the more interesting build anyway.
-- Cloudflare's GraphQL API exposes enough per-request detail to build a useful stream view. ← *unverified, check before committing to it*
+- ~~Cloudflare's GraphQL API exposes enough per-request detail~~ — **disproven 2026-07-24.** See Phase 0.
+- Umami's schema gives per-event rows suitable for a stream view. ← *high confidence, not yet inspected first-hand*
 
 ---
 
 ## Approach
 
-### Phase 0 — One blocking check (do this first, costs an hour)
+### Phase 0 — RESOLVED 2026-07-24 ❌ Cloudflare cannot be the source
 
-⚠️ **Decisions 7 and 8 may be in conflict, and this resolves it.**
+**Question:** can Cloudflare give per-request rows (Decision 8's stream view) on a non-Enterprise plan?
 
-Decision 8 wants per-request rows (path, referrer, country, UA, status). Decision 7 says get them from Cloudflare with no collector. **But Cloudflare's GraphQL Analytics API is aggregated by dimension buckets — it is not a per-request event log.** Raw request rows come from Logpush or the adaptive HTTP requests dataset, both of which are plan-gated. The free zone analytics that produced that screenshot almost certainly cannot do it.
+**Answer: no.** Every route to raw request-level data is Enterprise-gated:
 
-**Check:** does the Cloudflare plan on that site expose per-request rows at all? A docs check or one API call answers it.
+| Route | Free | Pro | Business | Enterprise |
+|---|---|---|---|---|
+| Logpush | ❌ | ❌ | ❌ | ✅ |
+| Logpull (legacy) | ❌ | ❌ | ❌ | ✅ |
+| Instant Logs | ❌ | ❌ | ❌ | ✅ |
 
-- **Yes** → both decisions stand, proceed as written.
-- **No** → the source becomes **self-hosted Umami** (or similar). Decision 7 survives — you're still not writing a collector, just deploying one — and Decision 8 survives intact. This is the likely outcome; treat it as the default, not the fallback.
+*(Source: Cloudflare Logs docs, availability table, retrieved 2026-07-24.)*
 
-Do not start the build before this resolves. It determines the data layer, and the data layer is the schema, and the schema is the hook.
+The GraphQL Analytics API is no way around it. Its zone HTTP and RUM nodes are all `…Groups` — aggregated into dimension buckets by design. Raw (non-`Groups`) nodes exist only for a few products, not zone HTTP traffic. **There is no per-visit row anywhere on a free plan.**
+
+Cloudflare Web Analytics *is* free on all plans, but it's the same story: aggregated RUM groups, no session-level stream.
+
+**Consequence:** Decision 7 stands (still not writing a collector), Decision 8 stands (streams are still the right shape), but the **source changes**.
+
+### New source decision — self-hosted / hosted Umami
+
+Recommended, replacing Cloudflare:
+
+- Stores **per-event rows** (`session_id`, `url`, `referrer`, `event_name`, timestamp) — exactly the stream view's shape.
+- You own the database → serves Decision 1 ("local") far better than a vendor API ever would.
+- It's a client-side beacon, so you measure **real browsers, not crawlers** — which independently fixes the bot-noise problem in the traffic data.
+- Deploy it; don't build it. Decision 7 intact.
+
+**Trade-offs, honestly:** needs a snippet on the site, needs somewhere to run (Railway/Vercel/Fly, or Docker + tunnel), and the sync-to-local step becomes real work rather than a single API call.
+
+**Alternative if you want zero ops:** PostHog free tier → query API → sync to local DuckDB. Less "local" in spirit, much less to maintain. *(Free-tier event limits not verified — check before committing.)*
 
 ### Phase 1 — Build (the whole project)
 
@@ -115,7 +136,8 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 
 ## Offen — bei Till
 
-- [ ] **Phase 0 check** — can Cloudflare give per-request rows on this plan? Blocks the build.
+- [x] ~~Phase 0 check — can Cloudflare give per-request rows?~~ **No. Enterprise only.** Source switched to Umami.
+- [ ] **Umami self-hosted vs PostHog free tier** — ops burden vs. "local" purity. Blocks the sync layer.
 - [ ] **Smallest useful stream view** — what would you actually want on screen? Defines the 2-weekend timebox.
 - [ ] **Name.** Blocks the repo.
 - [ ] Framework: **Go (Bubble Tea)** unless you have Rust. Not really open — the single-binary promise rules out Ink, and Bubble Tea has the richest component set for dashboards. Confirm and move on.
