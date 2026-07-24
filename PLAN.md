@@ -54,7 +54,8 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 | 4 | **TUI, not a VS Code extension** | Editor-agnostic, works over SSH. Not "because people live in VS Code" — that argument points at an extension. |
 | 5 | **Scroll depth is cut** | Marketer feature. Needs long content pages and per-page volume. Neither exists. |
 | 6 | **Journey maps are cut** | Need ~500+ sessions/week to be anything but noise. Reframed to funnels, then cut too — a funnel at n=8 fails the same test. |
-| 7 | **No custom collector** | Do not build ingest infrastructure. ~~Cloudflare GraphQL~~ → **deploy Umami** (see Phase 0 result). Deploying a collector is not writing one. |
+| 7 | **No custom collector, no self-hosting** | Do not build *or run* ingest infrastructure. ~~Cloudflare GraphQL~~ → **Umami Cloud** (see Phase 0 result). |
+| 10 | **"Local" = the read path, not the storage of record** | Events live in Umami Cloud; the local DuckDB is a synced copy. TUI and agent read only the local file. |
 | 8 | **Streams, not aggregates** | Aggregates need volume. Streams don't. "Last 50 visits: what they hit, where from, what they did" is honest at any n, trivially a local table, and directly agent-queryable. |
 | 9 | **Till is not the target user** | No personal site has meaningful traffic. Dogfooding unavailable — acceptable now that this is a portfolio piece. |
 
@@ -65,7 +66,8 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 - Biggest personal site shows **68 unique visitors / 24h** in Cloudflare, but **245 total requests** — 3.6 req/visitor, flat overnight, peaking at 4 AM. **Likely mostly bots.** Real human sessions probably single digits/day. ← *unverified*
 - Low volume is now a **feature constraint, not a blocker** — it forces the stream design, which is the more interesting build anyway.
 - ~~Cloudflare's GraphQL API exposes enough per-request detail~~ — **disproven 2026-07-24.** See Phase 0.
-- Umami's schema gives per-event rows suitable for a stream view. ← *high confidence, not yet inspected first-hand*
+- ~~Umami's schema gives per-event rows~~ — **verified 2026-07-25** against the API docs. See Phase 0.
+- Umami Cloud's free tier covers this traffic. ← *unverified, pricing page wouldn't scrape; confirm at signup*
 
 ---
 
@@ -91,18 +93,41 @@ Cloudflare Web Analytics *is* free on all plans, but it's the same story: aggreg
 
 **Consequence:** Decision 7 stands (still not writing a collector), Decision 8 stands (streams are still the right shape), but the **source changes**.
 
-### New source decision — self-hosted / hosted Umami
+### Source decision — Umami Cloud (hosted). Verified 2026-07-25.
 
-Recommended, replacing Cloudflare:
+**No self-hosting** — Till's call, 2026-07-25. Umami Cloud, not a box you maintain.
 
-- Stores **per-event rows** (`session_id`, `url`, `referrer`, `event_name`, timestamp) — exactly the stream view's shape.
-- You own the database → serves Decision 1 ("local") far better than a vendor API ever would.
-- It's a client-side beacon, so you measure **real browsers, not crawlers** — which independently fixes the bot-noise problem in the traffic data.
-- Deploy it; don't build it. Decision 7 intact.
+**Verified against the Umami API docs:** `GET /api/websites/:websiteId/sessions/:sessionId/activity` returns per-event rows with exactly the fields the stream view needs —
 
-**Trade-offs, honestly:** needs a snippet on the site, needs somewhere to run (Railway/Vercel/Fly, or Docker + tunnel), and the sync-to-local step becomes real work rather than a single API call.
+```json
+{
+  "createdAt": "2025-10-21T15:00:09Z",
+  "urlPath": "/blog",
+  "urlQuery": "",
+  "referrerDomain": "umami.is",
+  "eventId": "…",
+  "eventType": 1,
+  "eventName": "",
+  "visitId": "…"
+}
+```
 
-**Alternative if you want zero ops:** PostHog free tier → query API → sync to local DuckDB. Less "local" in spirit, much less to maintain. *(Free-tier event limits not verified — check before committing.)*
+Paired with `GET /api/websites/:websiteId/sessions` (session list over a time range), that *is* the stream view, natively. Auth is an API key — see Umami docs `cloud/api-key`.
+
+**Why this over PostHog Cloud:**
+
+- Exact-fit API. PostHog's HogQL is more powerful, but you'd be querying a product-analytics warehouse to render a visit list.
+- ~2 KB script, no cookies, no consent banner. PostHog's bundle and consent surface are large for what this needs.
+- Matches the segment's aesthetic — lightweight and privacy-first is the same taste that likes TUIs.
+- Free tier covers this traffic many times over.
+
+⚠️ **Known limitation — N+1 fetch.** The sync is: list sessions, then one activity call *per session*. Fine at single-digit sessions/day. It would fall over on a busy site, which matters if anyone else ever points this at real traffic. **Check Umami's `cloud/export-data` for a bulk path before writing the sync loop.**
+
+⚠️ **Unverified:** exact free-tier limits. Umami's pricing page is JS-rendered and wouldn't scrape. Headroom is enormous at this volume either way, but confirm at signup.
+
+### What this does to Decision 1 ("local")
+
+The record of truth now lives in Umami Cloud; the local DuckDB is a **synced copy**. That's a real shift and worth being precise about: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
 
 ### Phase 1 — Build (the whole project)
 
@@ -137,7 +162,9 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 ## Offen — bei Till
 
 - [x] ~~Phase 0 check — can Cloudflare give per-request rows?~~ **No. Enterprise only.** Source switched to Umami.
-- [ ] **Umami self-hosted vs PostHog free tier** — ops burden vs. "local" purity. Blocks the sync layer.
+- [x] ~~Umami self-hosted vs PostHog~~ **Umami Cloud. No self-hosting.** (2026-07-25)
+- [ ] **Sign up for Umami Cloud, add the snippet, get an API key.** Unblocks everything; also starts the clock on collecting real data.
+- [ ] **Check `cloud/export-data` for a bulk endpoint** before writing the N+1 sync loop.
 - [ ] **Smallest useful stream view** — what would you actually want on screen? Defines the 2-weekend timebox.
 - [ ] **Name.** Blocks the repo.
 - [ ] Framework: **Go (Bubble Tea)** unless you have Rust. Not really open — the single-binary promise rules out Ink, and Bubble Tea has the richest component set for dashboards. Confirm and move on.
