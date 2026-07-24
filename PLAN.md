@@ -129,6 +129,55 @@ Paired with `GET /api/websites/:websiteId/sessions` (session list over a time ra
 
 The record of truth now lives in Umami Cloud; the local DuckDB is a **synced copy**. That's a real shift and worth being precise about: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
 
+## Architecture
+
+```mermaid
+flowchart TD
+    V["Visitor's browser<br/>(umami script, ~2KB)"] -->|events| U["Umami Cloud<br/>storage of record"]
+    U -->|"REST + API key"| S["sync command<br/>YOU BUILD THIS"]
+    S -->|writes| D[("analytics.duckdb<br/>local file")]
+    D --> T["TUI<br/>YOU BUILD THIS"]
+    D --> A["Agent in the terminal"]
+    F["demo fixture"] -.->|seeds| D
+```
+
+**The TUI never talks to Umami.** Only `sync` does. That single decision buys instant rendering, offline use, and — because the file is just a file — direct agent access with no API, auth, or rate limit in the way. It's also what makes Decision 2 real rather than a slogan.
+
+### What you actually build
+
+Three things. Everything else is configuration.
+
+| Piece | What it does |
+|---|---|
+| `sync` | Umami REST → DuckDB. Incremental, idempotent on `eventId`, stores a watermark of the last synced timestamp. |
+| TUI | Reads DuckDB with SQL. Stream view first, overview second. |
+| `query` subcommand | Runs raw SQL against the local file and prints it. **This is the agent interface** — it means an agent needs no DuckDB install and no schema hunting. |
+
+### Local schema (draft)
+
+The schema *is* the product — it's what the agent reads. Optimise it for legibility to something that has never seen the codebase.
+
+```sql
+sessions(session_id PK, first_seen, last_seen, country,
+         browser, os, device, referrer)
+
+events(event_id PK, session_id FK, visit_id, created_at,
+       url_path, url_query, referrer_domain, event_type, event_name)
+```
+
+Maps 1:1 onto Umami's `/sessions` and `/sessions/:id/activity` responses — no translation layer, no invented vocabulary.
+
+### Setup sequence
+
+1. Sign up at Umami Cloud → add a website → get **website ID** + tracking snippet
+2. Snippet into the site's `<head>`. Data starts accumulating immediately.
+3. Generate an **API key** (Umami docs → `cloud/api-key`)
+4. `yourtool sync` → populates the local DuckDB
+5. `yourtool` → TUI reads the file
+6. Agent: `yourtool query "select url_path, count(*) from events group by 1"`
+
+Steps 1–3 are an afternoon and require no code. The demo fixture seeds the **same** schema, so the TUI is identical whether it's showing real data or seed data — which is why it can be built before any real traffic arrives.
+
 ### Phase 1 — Build (the whole project)
 
 **Timebox: 2 weekends to something demoable.** If it runs longer, the scope was wrong.
