@@ -27,9 +27,16 @@ Jobs (Till's own framing):
 **Real bar (what actually gets it noticed — the listing follows this, not the reverse):**
 
 - [ ] A demo GIF in the README that works without explanation. This does more for a TUI than any feature.
+- [ ] **A seeded demo dataset (`--demo` mode or checked-in fixture).** First-class deliverable, not an afterthought — see "The GIF problem" below.
 - [ ] One hook that isn't "another pretty dashboard." Current candidate: the local data file is agent-queryable.
 - [ ] Runs on someone else's machine in under a minute — single binary or one install command.
 - [ ] A name worth typing.
+
+### The GIF problem
+
+Real traffic is single-digit humans and probably bot-dominated. A stream view showing six rows of `GET / — bot — 200` *is* the demo GIF, and it undersells the tool badly. It also means anyone who installs it sees an empty screen on first run.
+
+So the demo dataset is not optional polish — it's what makes both the GIF and the first-run experience work. Build it early, from realistic shapes, and be transparent in the README that it's seed data.
 
 Getting listed is a forcing function with a clean finish line. It is a weak quality signal on its own — the list accepts most working things. Build for the real bar; the listing follows.
 
@@ -63,12 +70,25 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 
 ## Approach
 
+### Phase 0 — One blocking check (do this first, costs an hour)
+
+⚠️ **Decisions 7 and 8 may be in conflict, and this resolves it.**
+
+Decision 8 wants per-request rows (path, referrer, country, UA, status). Decision 7 says get them from Cloudflare with no collector. **But Cloudflare's GraphQL Analytics API is aggregated by dimension buckets — it is not a per-request event log.** Raw request rows come from Logpush or the adaptive HTTP requests dataset, both of which are plan-gated. The free zone analytics that produced that screenshot almost certainly cannot do it.
+
+**Check:** does the Cloudflare plan on that site expose per-request rows at all? A docs check or one API call answers it.
+
+- **Yes** → both decisions stand, proceed as written.
+- **No** → the source becomes **self-hosted Umami** (or similar). Decision 7 survives — you're still not writing a collector, just deploying one — and Decision 8 survives intact. This is the likely outcome; treat it as the default, not the fallback.
+
+Do not start the build before this resolves. It determines the data layer, and the data layer is the schema, and the schema is the hook.
+
 ### Phase 1 — Build (the whole project)
 
 **Timebox: 2 weekends to something demoable.** If it runs longer, the scope was wrong.
 
-1. Verify Cloudflare's GraphQL API returns per-request rows with enough fields (path, referrer, country, UA, status, timing). If not, fall back to a self-hosted collector or Umami.
-2. Local store: DuckDB or SQLite. **The schema is the product** — it's what the agent reads. Design it to be legible to something that has never seen the codebase.
+1. Local store: DuckDB or SQLite. **The schema is the product** — it's what the agent reads. Design it to be legible to something that has never seen the codebase.
+2. Seeded demo dataset. Early, not last — it's how you develop the TUI at all, given real volume is single digits.
 3. Sync command: pull → local file. Incremental.
 4. TUI: stream view first. Overview/health second. Nothing else until both feel good.
 5. Demo GIF, README, install path.
@@ -95,10 +115,11 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 
 ## Offen — bei Till
 
+- [ ] **Phase 0 check** — can Cloudflare give per-request rows on this plan? Blocks the build.
 - [ ] **Smallest useful stream view** — what would you actually want on screen? Defines the 2-weekend timebox.
 - [ ] **Name.** Blocks the repo.
-- [ ] Language/framework: Go (Bubble Tea) vs Rust (Ratatui) vs TS (Ink). Affects the single-binary install promise — Ink does not deliver it.
-- [ ] Optional: verify the 68 in Cloudflare's bot breakdown. Doesn't block anything now, but tells you what your demo data will actually look like.
+- [ ] Framework: **Go (Bubble Tea)** unless you have Rust. Not really open — the single-binary promise rules out Ink, and Bubble Tea has the richest component set for dashboards. Confirm and move on.
+- [ ] Optional: verify the 68 in Cloudflare's bot breakdown. Doesn't block anything, but tells you what real data will look like next to your seed data.
 
 ---
 
