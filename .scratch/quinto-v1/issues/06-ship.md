@@ -16,6 +16,7 @@ Be transparent that the screenshots show seeded data. A portfolio project that i
 - [ ] A first-time user gets from install to a populated screen in under a minute
 - [ ] Setup for real data — GoatCounter account, the individual-pageviews setting, snippet, API token — is documented end to end
 - [ ] The docs tell users to create an **Export-scoped, single-site token**, and say why — not "create a token" with the permissions left to chance
+- [ ] The setup docs warn that the "Individual pageviews" toggle must be saved and re-checked after reload, that it is **not retroactive**, and that a populated dashboard is no evidence it is working — every one of these caught us during development
 - [ ] The agent interface is presented as a feature, not buried in a flags list
 - [ ] Repository name, binary name and documentation all agree
 - [ ] `quinto` name availability confirmed before publishing

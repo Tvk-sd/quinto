@@ -261,6 +261,9 @@ Each decision has a test asserting it in `internal/store/schema_test.go` — the
 
 1. Sign up at GoatCounter → you get `yourcode.goatcounter.com`
 2. **Enable "Individual pageviews" in site settings.** ⚠️ Off by default. Without it there is no per-hit export and nothing below works.
+   - **Save, then reload the page and confirm it's still ticked.** The toggle can appear flipped without persisting — this cost two export cycles on 2026-07-25 before we noticed.
+   - **It is not retroactive.** Only hits recorded after it's on appear in exports. A dashboard full of pageviews means nothing; those are aggregates collected earlier.
+   - Then **browse the site across several paths** before the first sync, or the export is empty and you have burned an hour of budget finding out.
 3. Snippet into the site's `<head>` — data accumulates immediately:
    ```html
    <script data-goatcounter="https://yourcode.goatcounter.com/count"
