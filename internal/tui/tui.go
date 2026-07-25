@@ -49,7 +49,15 @@ var (
 			Foreground(lipgloss.AdaptiveColor{Light: "160", Dark: "203"})
 )
 
-// Model is the stream view's state.
+type screen int
+
+const (
+	screenStream screen = iota
+	screenOverview
+)
+
+// Model is the TUI's state, shared by both screens so switching never changes
+// what period you are looking at.
 type Model struct {
 	db     *store.DB
 	isDemo bool
@@ -66,6 +74,10 @@ type Model struct {
 	syncedAt time.Time
 	synced   bool
 	totals   store.Totals
+
+	screen   screen
+	rng      Range
+	overview store.Overview
 
 	width, height int
 	err           error
@@ -103,6 +115,10 @@ func (m *Model) reload() error {
 	}
 	if state, err := m.db.SyncState(ctx); err == nil && state.Synced {
 		m.syncedAt, m.synced = state.LastSyncedAt, true
+	}
+
+	if m.overview, err = m.db.LoadOverview(ctx, m.rng.since()); err != nil {
+		return err
 	}
 
 	if m.cursor >= len(m.sessions) {
@@ -152,6 +168,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor, m.offset = 0, 0
 			m.err = m.reload()
 
+		case "tab", "o":
+			if m.screen == screenStream {
+				m.screen = screenOverview
+			} else {
+				m.screen = screenStream
+			}
+
+		case "r":
+			m.rng = m.rng.next()
+			m.err = m.reload()
+
 		case "?":
 			m.showHelp = !m.showHelp
 		}
@@ -194,6 +221,9 @@ func (m *Model) View() string {
 	}
 	if m.showHelp {
 		return m.helpView()
+	}
+	if m.screen == screenOverview {
+		return m.overviewView()
 	}
 
 	var b strings.Builder
@@ -366,7 +396,8 @@ func (m *Model) footerView(total int) string {
 	}
 
 	for _, hints := range []string{
-		"↑↓ move · enter expand · b bots · ? help · q quit",
+		"↑↓ move · enter expand · tab overview · b bots · ? help · q quit",
+		"↑↓ · enter · tab · b · ? · q",
 		"↑↓ · enter · b bots · ? · q",
 		"? help · q quit",
 		"?",
@@ -398,6 +429,8 @@ func (m *Model) helpView() string {
 		"  enter, space expand or collapse a visit\n" +
 		"  ← / →        collapse / expand\n" +
 		"  g / G        first / last\n" +
+		"  tab / o      switch stream ⇄ overview\n" +
+		"  r            cycle the time range\n" +
 		"  b            show or hide bot traffic\n" +
 		"  ?            this help\n" +
 		"  q            quit\n\n" +
