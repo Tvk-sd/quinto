@@ -185,12 +185,18 @@ Steps 1–3 are an afternoon and require no code. The demo fixture seeds the **s
 
 **Timebox: 2 weekends to something demoable.** If it runs longer, the scope was wrong.
 
-1. Local store: DuckDB or SQLite. **The schema is the product** — it's what the agent reads. Design it to be legible to something that has never seen the codebase.
-2. Seeded demo dataset. Early, not last — it's how you develop the TUI at all, given real volume is single digits.
-3. Sync command: pull → local file. Incremental.
-4. TUI: stream view first. Overview/health second. Nothing else until both feel good.
-5. Demo GIF, README, install path.
-6. PR to awesome-tuis.
+The work queue lives in **`.scratch/quinto-v1/issues/`** — six tracer-bullet tickets, each with its blocking edges. This section is the shape; the tickets are the detail.
+
+| # | Ticket | Blocked by |
+|---|---|---|
+| 01 | Sync one real visit from Umami to the terminal | — |
+| 02 | Demo dataset | 01 |
+| 03 | Stream view TUI | 01, 02 |
+| 04 | `quinto query` — the agent interface | 01 |
+| 05 | Overview / site health screen | 03 |
+| 06 | Ship | 03, 04, 05 |
+
+Two ordering choices that aren't arbitrary: **02 precedes 03** so the TUI is designed against realistic density rather than six real rows, and **04 depends only on 01** so the agent interface can be built in parallel with the TUI.
 
 ### Cut from the plan
 
@@ -215,9 +221,11 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 
 - [x] ~~Phase 0 check — can Cloudflare give per-request rows?~~ **No. Enterprise only.** Source switched to Umami.
 - [x] ~~Umami self-hosted vs PostHog~~ **Umami Cloud. No self-hosting.** (2026-07-25)
-- [ ] **Sign up for Umami Cloud, add the snippet, get an API key.** Unblocks everything; also starts the clock on collecting real data.
-- [ ] **Check `cloud/export-data` for a bulk endpoint** before writing the N+1 sync loop.
-- [ ] **Smallest useful stream view** — what would you actually want on screen? Defines the 2-weekend timebox. `/to-tickets` will force this.
+- [x] ~~Sign up for Umami Cloud~~ **Free plan, 2026-07-25.**
+- [ ] **Paste the tracking snippet into the site's `<head>`** (dashboard → Websites → Edit → Tracking code; add `data-domains` to exclude localhost). Nothing else is blocked by it, but every day without it is a day of history you won't have.
+- [ ] **Generate an Umami API key** — blocks ticket 01.
+- [x] ~~Smallest useful stream view~~ **Session-grouped, expandable** (2026-07-25). One row per visit, expands to the path through the site. The honest small-n form of the customer journey map from the original brief.
+- [x] ~~Break the build into tickets~~ **Six tracer bullets** in `.scratch/quinto-v1/issues/` (2026-07-25).
 - [x] ~~Name~~ **`quinto`** (2026-07-25). Check availability before publishing: GitHub org/repo, Homebrew formula, and the `quinto` name on any registry you'd publish to.
 - [ ] Framework: **Go (Bubble Tea)** unless you have Rust. Not really open — the single-binary promise rules out Ink, and Bubble Tea has the richest component set for dashboards. Confirm and move on.
 - [ ] Optional: verify the 68 in Cloudflare's bot breakdown. Doesn't block anything, but tells you what real data will look like next to your seed data.
