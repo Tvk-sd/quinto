@@ -113,12 +113,18 @@ func (db *DB) SyncState(ctx context.Context) (SyncState, error) {
 }
 
 // RecordSync stores GoatCounter's cursor and when we last spoke to them.
+//
+// The cursor only ever moves forward. An empty incremental export currently
+// echoes the cursor back unchanged, but nothing in their API guarantees that —
+// and a response carrying 0 would otherwise reset us to the beginning and
+// refetch everything on the next run. Taking the maximum makes that class of
+// failure impossible rather than unlikely.
 func (db *DB) RecordSync(ctx context.Context, lastHitID int64, at time.Time, rows int64) error {
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO sync_state (id, last_hit_id, last_synced_at, synced_rows)
 		VALUES (1, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
-			last_hit_id    = excluded.last_hit_id,
+			last_hit_id    = MAX(COALESCE(sync_state.last_hit_id, 0), excluded.last_hit_id),
 			last_synced_at = excluded.last_synced_at,
 			synced_rows    = sync_state.synced_rows + excluded.synced_rows`,
 		lastHitID, at.UTC().Format(time.RFC3339), rows)

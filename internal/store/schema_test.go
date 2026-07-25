@@ -276,3 +276,38 @@ func TestSyncStateRoundTrips(t *testing.T) {
 		t.Errorf("after second sync: %+v, want cursor 1657794700 and 8 rows", s)
 	}
 }
+
+// The cursor must never move backwards. An empty export echoing 0 would
+// otherwise reset us to the beginning and refetch the entire history — the
+// worst possible failure for a source that allows one export an hour.
+func TestSyncCursorNeverGoesBackwards(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	at := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+
+	if err := db.RecordSync(ctx, 1657819971, at, 8); err != nil {
+		t.Fatalf("RecordSync: %v", err)
+	}
+
+	for _, regress := range []int64{0, 1, 1657819970} {
+		if err := db.RecordSync(ctx, regress, at.Add(time.Hour), 0); err != nil {
+			t.Fatalf("RecordSync(%d): %v", regress, err)
+		}
+		s, err := db.SyncState(ctx)
+		if err != nil {
+			t.Fatalf("SyncState: %v", err)
+		}
+		if s.LastHitID != 1657819971 {
+			t.Fatalf("cursor moved to %d after recording %d — it must only advance",
+				s.LastHitID, regress)
+		}
+	}
+
+	// Forward progress still works.
+	if err := db.RecordSync(ctx, 1657900000, at.Add(2*time.Hour), 3); err != nil {
+		t.Fatalf("RecordSync forward: %v", err)
+	}
+	if s, _ := db.SyncState(ctx); s.LastHitID != 1657900000 {
+		t.Errorf("cursor = %d, want it to advance to 1657900000", s.LastHitID)
+	}
+}
