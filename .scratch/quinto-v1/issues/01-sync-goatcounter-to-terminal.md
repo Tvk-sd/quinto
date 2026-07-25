@@ -45,18 +45,62 @@ This matters beyond one account: whatever scope we use becomes the documented de
 
 **Blocked by:** A GoatCounter account with **"Individual pageviews" enabled** in site settings (off by default — without it the export contains nothing) and an **Export-scoped API token**. A human prerequisite, tracked in `PLAN.md` › Offen — bei Till. No other tickets.
 
-**Status:** ready-for-agent
+**Status:** resolved (2026-07-25)
 
-- [ ] `quinto sync` authenticates with a GoatCounter API key, creates an export, waits for it to finish, downloads and ingests it
-- [ ] Individual pageviews land in a local SQLite file, one row per hit
-- [ ] A `sessions` view groups hits into visits
-- [ ] Ingesting the same export twice produces no duplicate rows (verified against fixtures — a second live sync is impossible within the rate limit)
-- [ ] Sync is incremental — subsequent runs pass the stored `last_hit_id` as `start_from_hit_id`
-- [ ] A `429` is reported as "next sync available in Xm", not as an error or a stack trace
-- [ ] The stored data's age is recorded and displayable, so stale numbers are never shown as current
-- [ ] An unexpected export format version aborts with a clear error instead of writing corrupt data
-- [ ] Cursor handling, idempotency, version checking and 429 handling are covered by tests against fixture exports
-- [ ] `quinto` prints the most recent visits as a readable table, excluding bots by default
-- [ ] A visit you make to your own site appears after a sync
-- [ ] The database file lives in a conventional per-user location, and its path is discoverable from the CLI
-- [ ] Credentials are read from config or environment, never committed
+- [x] `quinto sync` authenticates with a GoatCounter API key, creates an export, waits for it to finish, downloads and ingests it
+- [x] Individual pageviews land in a local SQLite file, one row per hit
+- [x] A `sessions` view groups hits into visits
+- [x] Ingesting the same export twice produces no duplicate rows (verified against fixtures — a second live sync is impossible within the rate limit)
+- [x] Sync is incremental — subsequent runs pass the stored `last_hit_id` as `start_from_hit_id`
+- [x] A `429` is reported as "next sync available in Xm", not as an error or a stack trace
+- [x] The stored data's age is recorded and displayable, so stale numbers are never shown as current
+- [x] An unexpected export format version aborts with a clear error instead of writing corrupt data
+- [x] Cursor handling, idempotency, version checking and 429 handling are covered by tests against fixture exports
+- [x] `quinto` prints the most recent visits as a readable table, excluding bots by default
+- [x] A visit you make to your own site appears after a sync
+- [x] The database file lives in a conventional per-user location, and its path is discoverable from the CLI
+- [x] Credentials are read from config or environment, never committed
+
+## Answer
+
+Closed 2026-07-25. Verified end to end against the live GoatCounter API, not
+only against fixtures.
+
+```
+$ quinto sync
+first sync — fetching everything GoatCounter has…
+Synced 8 new pageviews.
+
+$ quinto
+data as of 21:04 (0s ago) · 8 pageviews stored
+
+time   country  browser      referrer     pages  duration  entry
+12:26  DE       Safari 26.5  direct       5      5s        /
+11:32  DE       Chrome 126   Hacker News  3      8s        /quinto-test
+
+$ quinto sync          # second run
+syncing from hit 1657819971…
+Nothing to do — GoatCounter allows about one export an hour.
+Next sync possible in 1h0m0s.
+```
+
+Counts unchanged after the second sync (8 hits, 2 sessions): the stored cursor
+advanced and a rate-limited run left state untouched.
+
+**What the real export changed.** Four documented details were wrong, and each
+would have produced a parser that passed its own tests and failed on contact:
+the header is `2Path` (version glued to the column name, one field, not the
+`2,Path` the docs render); the column is `UserAgent`, not `User-Agent`;
+`Screen size` is a quoted comma-bearing field, so splitting on `,` shifts every
+later column; and rows carry **no id at all**, which made the planned
+`hit_id` primary key impossible. The key is now a content hash — which is also
+what makes re-ingest a no-op.
+
+It also disproved a design assumption: `first_visit` is set on more than one
+hit per session, so "the flagged hit" is not unique. The sessions view now
+takes the *earliest* flagged hit, preserving the decision's intent while being
+deterministic.
+
+**Left open, deliberately:** Till's own pageviews were initially absent, which
+looked like an ad-blocker problem. Real data shows his traffic arriving
+normally (the Safari session above). Not a quinto issue.
