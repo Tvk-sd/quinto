@@ -11,6 +11,9 @@ The export is asynchronous — create it, poll until finished, download the resu
 1. **`format` must be sent explicitly.** The spec says it defaults to CSV; posting `{}` returns `unknown format: ""`. Send `{"format":"csv"}`.
 2. **Use CSV, not JSON** — despite GoatCounter's docs recommending JSON. Their OpenAPI spec is explicit that `start_from_hit_id` is the *CSV* cursor; JSON only offers `start_from_day`. Hit-level resumption beats day-level.
 3. **Exports are rate limited to about one per hour** — a separate, much tighter budget than the documented 4 req/s. This is the single most important constraint on this ticket.
+4. **The API returns transient `404 not found` on valid authenticated requests.** Observed twice on `/api/v0/me`, with five consecutive 200s immediately afterwards using identical credentials. A 404 is therefore not proof of a wrong URL or a bad token — retry idempotent GETs before surfacing an error, or the tool will report failures that aren't real.
+
+Observed response shapes: `POST /export` returns `202` with `{id, site_id, format, last_hit_id, path}`; poll until `finished_at` is non-null; download returns `content-type: application/gzip` and must be gunzipped. An export with no data returns a 23-byte gzip containing **zero lines — not even a header row.** Handle that as "no data", not as a parse failure.
 
 **The rate limit changes what sync is.** It is a deliberate, infrequent action. It cannot be run on demand, and it cannot be run twice to verify something. So: a `429` is a normal operating state, not a failure — capture the retry window from the response and tell the user when the next sync is possible. And the tool must be able to say **how old its data is**, because at an hourly cadence, silently stale numbers are the interface lying.
 
