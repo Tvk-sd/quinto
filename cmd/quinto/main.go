@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Tvk-sd/quinto/internal/config"
+	"github.com/Tvk-sd/quinto/internal/demo"
 	"github.com/Tvk-sd/quinto/internal/goatcounter"
 	"github.com/Tvk-sd/quinto/internal/store"
 )
@@ -27,11 +28,13 @@ const usage = `quinto — web analytics in your terminal
 USAGE
   quinto                        Show recent visits
   quinto sync                   Pull new pageviews from GoatCounter
+  quinto demo                   Fill a separate database with sample traffic
   quinto query <sql> [--json]   Run SQL against the local database
   quinto schema                 Print the database schema
   quinto path                   Print the database file location
 
 FLAGS
+  --demo        Read the demo database instead of your own data
   --db <path>   Use a specific database file
   --json        Emit JSON instead of a table (for scripts and agents)
 
@@ -65,6 +68,7 @@ func run(args []string) error {
 
 	dbPath := fs.String("db", "", "path to the database file")
 	asJSON := fs.Bool("json", false, "emit JSON instead of a table")
+	demoMode := fs.Bool("demo", false, "read the demo database")
 
 	// Split the subcommand from its flags so `quinto query "..." --json`
 	// works in the order people actually type it.
@@ -81,9 +85,18 @@ func run(args []string) error {
 		return err
 	}
 
+	// Demo data lives in its own file. Keeping it separate — rather than
+	// tagging rows inside the shared schema — means demo mode cannot touch
+	// real data, and the schema an agent reads stays free of bookkeeping.
+	isDemo := *demoMode || (len(positional) > 0 && positional[0] == "demo")
+
 	path := *dbPath
 	if path == "" {
-		p, err := store.DefaultPath("quinto.db")
+		name := "quinto.db"
+		if isDemo {
+			name = "quinto-demo.db"
+		}
+		p, err := store.DefaultPath(name)
 		if err != nil {
 			return err
 		}
@@ -91,12 +104,14 @@ func run(args []string) error {
 	}
 
 	if len(positional) == 0 {
-		return runRecent(path)
+		return runRecent(path, isDemo)
 	}
 
 	switch positional[0] {
 	case "sync":
 		return runSync(path)
+	case "demo":
+		return runDemo(path)
 	case "query":
 		if len(positional) < 2 {
 			return fmt.Errorf("query needs SQL: quinto query \"select * from sessions limit 5\"")
@@ -230,10 +245,43 @@ func toStoreHits(in []goatcounter.Hit) []store.Hit {
 	return out
 }
 
+// runDemo fills the demo database with sample traffic. It writes to a
+// different file than sync, so it can never overwrite real data — the
+// separation is structural rather than a guard someone has to remember.
+//
+// Generation is seeded, and hit keys are derived from the seed, so running it
+// twice adds nothing rather than doubling the dataset.
+func runDemo(path string) error {
+	db, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	opts := demo.Defaults()
+	sessions, hits, err := demo.Generate(ctx, db, opts)
+	if err != nil {
+		return err
+	}
+	if err := db.RecordSync(ctx, 0, time.Now(), int64(hits)); err != nil {
+		return err
+	}
+
+	if hits == 0 {
+		fmt.Printf("Demo data already present in %s.\n", path)
+	} else {
+		fmt.Printf("Generated %d sessions (%d pageviews) over %d days in %s.\n",
+			sessions, hits, opts.Days, path)
+	}
+	fmt.Println("View it with: quinto --demo")
+	return nil
+}
+
 // runRecent lists the most recent visits, humans only. It always states how
 // old the data is: with an hourly sync ceiling, presenting stale numbers as
 // current would be the interface lying.
-func runRecent(path string) error {
+func runRecent(path string, isDemo bool) error {
 	db, err := store.OpenReadOnly(path)
 	if err != nil {
 		return err
@@ -242,7 +290,7 @@ func runRecent(path string) error {
 
 	ctx := context.Background()
 	res, err := db.Query(ctx, `
-		SELECT substr(first_seen, 12, 5) AS time,
+		SELECT substr(first_seen, 6, 5) || ' ' || substr(first_seen, 12, 5) AS when_,
 		       country,
 		       browser,
 		       COALESCE(NULLIF(referrer, ''), 'direct') AS referrer,
@@ -255,6 +303,13 @@ func runRecent(path string) error {
 		LIMIT 25`)
 	if err != nil {
 		return err
+	}
+
+	// Never let demo data pass for real traffic. A tool whose screenshots
+	// imply numbers its owner does not have is the one failure mode that
+	// would undermine the point of building it.
+	if isDemo {
+		fmt.Println("DEMO DATA — generated sample traffic, not a real site")
 	}
 
 	if state, serr := db.SyncState(ctx); serr == nil && state.Synced {

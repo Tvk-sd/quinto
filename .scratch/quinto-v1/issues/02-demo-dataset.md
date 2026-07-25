@@ -14,13 +14,43 @@ It writes the same schema as ticket 01 but into a **separate database file**, se
 
 **Blocked by:** 01 — needs the schema to exist.
 
-**Status:** ready-for-agent
+**Status:** resolved (2026-07-25)
 
-- [ ] `quinto demo` populates the local database with several hundred sessions across a multi-week range
-- [ ] Sessions contain coherent multi-page paths, not disconnected random hits
-- [ ] Referrers, geography, browsers and session durations are plausibly distributed
-- [ ] Traffic follows a day/night curve rather than being uniform
-- [ ] Generation is seeded and reproducible
-- [ ] Demo data is written to a separate database file, never to the real one
-- [ ] The TUI and `query` can be pointed at the demo file by a flag
-- [ ] While viewing demo data the interface says so, so nobody mistakes it for their own traffic
+- [x] `quinto demo` populates the local database with several hundred sessions across a multi-week range
+- [x] Sessions contain coherent multi-page paths, not disconnected random hits
+- [x] Referrers, geography, browsers and session durations are plausibly distributed
+- [x] Traffic follows a day/night curve rather than being uniform
+- [x] Generation is seeded and reproducible
+- [x] Demo data is written to a separate database file, never to the real one
+- [x] The TUI and `query` can be pointed at the demo file by a flag
+- [x] While viewing demo data the interface says so, so nobody mistakes it for their own traffic
+
+## Answer
+
+Closed 2026-07-25. `quinto demo` generates 420 sessions / ~820 hits over 28
+days into a separate `quinto-demo.db`; `quinto --demo` reads it and labels
+every screen `DEMO DATA — generated sample traffic, not a real site`.
+
+Deliberately unflattering, because a demo that flatters the tool is a sales
+pitch rather than a preview:
+
+```
+bot share            26%      (crawlers really are a third of small-site traffic)
+single-page visits   60%      (most people bounce)
+sessions with 4+     22       (enough to demonstrate the expandable journey)
+overnight traffic    present but ~15x below the midday peak
+```
+
+**Two modelling errors only surfaced once realistic data existed**, which is
+the argument for building this before the TUI rather than after:
+
+1. `page_count` counted events as pages. With events on most pages that error
+   is systematic — it turned bounces into journeys and made two-page visits
+   look nearly as common as one-page ones. Pages and events are now counted
+   separately.
+2. An event is a second *observation*, so a single-page visit that fires one
+   has a measurable duration after all. 68 of 185 single-page demo visits are
+   bounded this way; the rest correctly stay NULL.
+
+Also fixed a display bug the multi-day data exposed: the recent list showed
+only `HH:MM`, so visits from different days appeared out of order.

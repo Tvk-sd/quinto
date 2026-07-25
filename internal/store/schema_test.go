@@ -152,6 +152,36 @@ func TestSessionWithoutEntryHitHasNullEntry(t *testing.T) {
 	}
 }
 
+// Events are hits but not pages. Counting them as pages would turn a bounce
+// into a journey — and with events on most pages, that error is systematic.
+func TestEventsCountSeparatelyFromPages(t *testing.T) {
+	db := openTemp(t)
+	pageview := hit("k1", "sess-e", "/", "2026-07-25T14:00:00Z", true, 0)
+	event := hit("k2", "sess-e", "CTA · email_click", "2026-07-25T14:00:12Z", false, 0)
+	event.IsEvent = true
+	insert(t, db, pageview, event)
+
+	var pages, events int
+	var duration sql.NullInt64
+	if err := db.QueryRow(
+		`SELECT page_count, event_count, duration_seconds FROM sessions WHERE session = 'sess-e'`).
+		Scan(&pages, &events, &duration); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+
+	if pages != 1 {
+		t.Errorf("page_count = %d, want 1 — the event is not a page", pages)
+	}
+	if events != 1 {
+		t.Errorf("event_count = %d, want 1", events)
+	}
+	// An event is a second observation, so the visit's duration is bounded
+	// even though only one page was viewed.
+	if !duration.Valid || duration.Int64 != 12 {
+		t.Errorf("duration_seconds = %v, want 12 — an event bounds the visit", duration)
+	}
+}
+
 // Decision 4: bots reach the view. Excluding them is the caller's WHERE clause.
 func TestBotsAreVisibleInSessions(t *testing.T) {
 	db := openTemp(t)

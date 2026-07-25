@@ -98,9 +98,14 @@ agg AS (
 	SELECT session,
 	       MIN(created_at) AS first_seen,
 	       MAX(created_at) AS last_seen,
-	       COUNT(*)        AS page_count,
-	       MAX(bot)        AS bot,
-	       -- NULL for single-page visits: unmeasurable, not zero.
+	       -- Events are hits but not pages. Counting them as pages would
+	       -- inflate visit depth and make bounces look like journeys.
+	       SUM(CASE WHEN is_event = 0 THEN 1 ELSE 0 END) AS page_count,
+	       SUM(CASE WHEN is_event = 1 THEN 1 ELSE 0 END) AS event_count,
+	       MAX(bot) AS bot,
+	       -- NULL when there is only one observation: you cannot see when
+	       -- someone left. An event counts as an observation — it bounds the
+	       -- visit even on a single page.
 	       CASE WHEN COUNT(*) > 1
 	            THEN unixepoch(MAX(created_at)) - unixepoch(MIN(created_at))
 	       END AS duration_seconds
@@ -111,6 +116,7 @@ SELECT a.session,
        a.first_seen,
        a.last_seen,
        a.page_count,
+       a.event_count,
        a.bot,
        CASE WHEN r.first_visit = 1 THEN r.path            END AS entry_path,
        CASE WHEN r.first_visit = 1 THEN r.referrer        END AS referrer,
