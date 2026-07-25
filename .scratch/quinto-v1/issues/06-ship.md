@@ -14,7 +14,8 @@ Be transparent that the screenshots show seeded data. A portfolio project that i
 - [ ] The GIF is recorded against the demo dataset and says so
 - [ ] Install is a single command or a single binary, on macOS and Linux
 - [ ] A first-time user gets from install to a populated screen in under a minute
-- [ ] Setup for real data — GoatCounter account, the individual-pageviews setting, snippet, API key — is documented end to end
+- [ ] Setup for real data — GoatCounter account, the individual-pageviews setting, snippet, API token — is documented end to end
+- [ ] The docs tell users to create an **Export-scoped, single-site token**, and say why — not "create a token" with the permissions left to chance
 - [ ] The agent interface is presented as a feature, not buried in a flags list
 - [ ] Repository name, binary name and documentation all agree
 - [ ] `quinto` name availability confirmed before publishing

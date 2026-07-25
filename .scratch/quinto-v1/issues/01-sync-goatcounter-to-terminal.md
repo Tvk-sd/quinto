@@ -26,7 +26,13 @@ This is the first ticket in an empty repo, so it also establishes the project sk
 
 **Testing policy for this project:** test the sync logic, not the rendering. Cursor handling, idempotency and version checking are claims you cannot verify by eyeballing a terminal — they need fixtures and assertions. TUI output does not get tests; it gets looked at. This is a two-weekend portfolio project, and that split is where tests actually pay for themselves.
 
-**Blocked by:** A GoatCounter account with **"Individual pageviews" enabled** in site settings (off by default — without it the export contains nothing) and an API key. A human prerequisite, tracked in `PLAN.md` › Offen — bei Till. No other tickets.
+**Token scope — least privilege.** GoatCounter tokens carry granular permissions. quinto calls three endpoints, all of them export: create, poll, download. It therefore needs **Export and nothing else**, scoped to a single site rather than "all sites, including those created in the future".
+
+It does not need *Read statistics* — every aggregate is computed locally, which is the whole point of the architecture. It must never hold *Record pageviews* (that writes events into the user's analytics) or *Create/Update sites* (that mutates their account). A read-only export token that leaks costs its owner a copy of data they already own; a token with write scope costs them their data's integrity.
+
+This matters beyond one account: whatever scope we use becomes the documented default in the README, so every future user inherits it.
+
+**Blocked by:** A GoatCounter account with **"Individual pageviews" enabled** in site settings (off by default — without it the export contains nothing) and an **Export-scoped API token**. A human prerequisite, tracked in `PLAN.md` › Offen — bei Till. No other tickets.
 
 **Status:** ready-for-agent
 
