@@ -177,6 +177,15 @@ Secondary but real: bot classification is hard and GoatCounter gives it free —
 
 The honest reason not to build it first: most portfolio projects never reach v2. Spend the two weekends on the thing being judged.
 
+**Sliced into tickets 2026-07-25** — see `.scratch/quinto-collect/issues/`. Six tickets: beacon-to-storage tracer, cookieless sessions, bot classification, abuse protection, export API with cursor, deploy story.
+
+**The slicing is itself the argument.** The collector is six tickets against v1's six — *a second project the same size as the first*, and with more unknowns: bot classification accuracy, abuse handling on a public endpoint, and free-tier limits that have already killed three sources in this project. Two of the six (abuse protection, deploy story) produce no visible feature at all.
+
+They're written as a separate effort deliberately. Two ways to use them:
+
+- **As v2** — additive, behind the existing sync boundary. Ticket 05's success condition is that `quinto sync` swaps source with no change to the TUI, schema or query interface. That doubles as a test of whether the boundary is where this plan claims it is.
+- **Instead of GoatCounter in v1** — then v1's ticket 01 is replaced by all six of these, the timebox roughly triples, and the under-a-minute install in ticket 06's definition of done breaks. Choose this only with that trade stated out loud.
+
 ### What this does to Decision 1 ("local")
 
 The record of truth lives in GoatCounter; the local DuckDB is a **synced copy**. Worth being precise: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
