@@ -1,6 +1,8 @@
-# TUI Analytics
+# quinto
 
-Terminal-native web analytics dashboard. See `PLAN.md` for scope, resolved decisions, and open items.
+Terminal-native web analytics dashboard. Reads a local DuckDB file synced from Umami Cloud; the same file is queryable by agents via `quinto query`.
+
+Named for *quinto sabor* — the fifth taste. See `PLAN.md` for scope, resolved decisions, and open items.
 
 ## Agent skills
 

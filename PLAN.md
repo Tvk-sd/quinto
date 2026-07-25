@@ -1,4 +1,6 @@
-# TUI Analytics — Plan
+# quinto — Plan
+
+*From "quinto sabor" — the fifth taste. Umami is the fifth taste, and Umami is the data source.*
 
 **Status:** Portfolio project. Validation phase cut. Ready to scope the build.
 **Success criterion:** Listed on [awesome-tuis → Dashboards](https://github.com/rothgar/awesome-tuis#dashboards)
@@ -56,6 +58,7 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 | 6 | **Journey maps are cut** | Need ~500+ sessions/week to be anything but noise. Reframed to funnels, then cut too — a funnel at n=8 fails the same test. |
 | 7 | **No custom collector, no self-hosting** | Do not build *or run* ingest infrastructure. ~~Cloudflare GraphQL~~ → **Umami Cloud** (see Phase 0 result). |
 | 10 | **"Local" = the read path, not the storage of record** | Events live in Umami Cloud; the local DuckDB is a synced copy. TUI and agent read only the local file. |
+| 11 | **Name: `quinto`** | From *quinto sabor*, the fifth taste. Umami is the fifth taste and Umami is the source — the reference lands for anyone who knows, and reads as a clean word to anyone who doesn't. Short, typeable, no vowel-dropping. |
 | 8 | **Streams, not aggregates** | Aggregates need volume. Streams don't. "Last 50 visits: what they hit, where from, what they did" is honest at any n, trivially a local table, and directly agent-queryable. |
 | 9 | **Till is not the target user** | No personal site has meaningful traffic. Dogfooding unavailable — acceptable now that this is a portfolio piece. |
 
@@ -172,9 +175,9 @@ Maps 1:1 onto Umami's `/sessions` and `/sessions/:id/activity` responses — no 
 1. Sign up at Umami Cloud → add a website → get **website ID** + tracking snippet
 2. Snippet into the site's `<head>`. Data starts accumulating immediately.
 3. Generate an **API key** (Umami docs → `cloud/api-key`)
-4. `yourtool sync` → populates the local DuckDB
-5. `yourtool` → TUI reads the file
-6. Agent: `yourtool query "select url_path, count(*) from events group by 1"`
+4. `quinto sync` → populates the local DuckDB
+5. `quinto` → TUI reads the file
+6. Agent: `quinto query "select url_path, count(*) from events group by 1"`
 
 Steps 1–3 are an afternoon and require no code. The demo fixture seeds the **same** schema, so the TUI is identical whether it's showing real data or seed data — which is why it can be built before any real traffic arrives.
 
@@ -214,8 +217,8 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 - [x] ~~Umami self-hosted vs PostHog~~ **Umami Cloud. No self-hosting.** (2026-07-25)
 - [ ] **Sign up for Umami Cloud, add the snippet, get an API key.** Unblocks everything; also starts the clock on collecting real data.
 - [ ] **Check `cloud/export-data` for a bulk endpoint** before writing the N+1 sync loop.
-- [ ] **Smallest useful stream view** — what would you actually want on screen? Defines the 2-weekend timebox.
-- [ ] **Name.** Blocks the repo.
+- [ ] **Smallest useful stream view** — what would you actually want on screen? Defines the 2-weekend timebox. `/to-tickets` will force this.
+- [x] ~~Name~~ **`quinto`** (2026-07-25). Check availability before publishing: GitHub org/repo, Homebrew formula, and the `quinto` name on any registry you'd publish to.
 - [ ] Framework: **Go (Bubble Tea)** unless you have Rust. Not really open — the single-binary promise rules out Ink, and Bubble Tea has the richest component set for dashboards. Confirm and move on.
 - [ ] Optional: verify the 68 in Cloudflare's bot breakdown. Doesn't block anything, but tells you what real data will look like next to your seed data.
 
