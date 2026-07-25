@@ -1,6 +1,6 @@
 # 01 — Sync one real visit from GoatCounter to the terminal
 
-**What to build:** You visit your own site, run two commands, and see that visit in your terminal. `quinto sync` pulls individual pageviews from GoatCounter's export API into a local DuckDB file; running `quinto` prints the most recent visits as a plain table. No TUI yet — this is the tracer bullet that proves the whole path works end to end.
+**What to build:** You visit your own site, run two commands, and see that visit in your terminal. `quinto sync` pulls individual pageviews from GoatCounter's export API into a local SQLite file; running `quinto` prints the most recent visits as a plain table. No TUI yet — this is the tracer bullet that proves the whole path works end to end.
 
 Running `sync` twice must not duplicate anything or refetch what it already has. GoatCounter makes this easy rather than inventing your own bookkeeping: the export response carries a `last_hit_id`, and a new export accepts `start_from_hit_id`. **Store their cursor; don't invent a watermark.**
 
@@ -31,7 +31,7 @@ This is the first ticket in an empty repo, so it also establishes the project sk
 **Status:** ready-for-agent
 
 - [ ] `quinto sync` authenticates with a GoatCounter API key, creates an export, waits for it to finish, downloads and ingests it
-- [ ] Individual pageviews land in a local DuckDB file, one row per hit
+- [ ] Individual pageviews land in a local SQLite file, one row per hit
 - [ ] A `sessions` view groups hits into visits
 - [ ] Running `quinto sync` twice in a row produces no duplicate rows
 - [ ] Sync is incremental — subsequent runs pass the stored `last_hit_id` as `start_from_hit_id`

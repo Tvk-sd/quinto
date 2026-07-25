@@ -50,7 +50,7 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 
 | # | Decision | Rationale |
 |---|---|---|
-| 1 | **"Local" = local database on the user's machine** | Events sync down; queries run against a local DuckDB/SQLite file. Not "UI is local, data lives in someone's cloud." |
+| 1 | **"Local" = local database on the user's machine** | Events sync down; queries run against a local SQLite file. Not "UI is local, data lives in someone's cloud." |
 | 2 | **Agent-readability is the hook** | A local file can be queried directly by an agent in the terminal — no API, no auth, no rate limits. Human TUI and agent read the same file. This is what separates it from every other dashboard on the list. |
 | 3 | **Audience = devs running agents in the terminal** | Till's framing. Sharpest idea in the session. |
 | 4 | **TUI, not a VS Code extension** | Editor-agnostic, works over SSH. Not "because people live in VS Code" — that argument points at an extension. |
@@ -59,7 +59,7 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 | 7 | **No custom collector, no self-hosting, no paying** | Do not build *or run* ingest infrastructure, and don't rent it either. ~~Cloudflare~~ → ~~Umami Cloud~~ → **GoatCounter** (see Phase 0 and the source decisions below). |
 | 8 | **Streams, not aggregates** | Aggregates need volume. Streams don't. "Last 50 visits: what they hit, where from, what they did" is honest at any n, trivially a local table, and directly agent-queryable. |
 | 9 | **Till is not the target user** | No personal site has meaningful traffic. Dogfooding unavailable — acceptable now that this is a portfolio piece. |
-| 10 | **"Local" = the read path, not the storage of record** | Events live in the vendor's cloud; the local DuckDB is a synced copy. TUI and agent read only the local file. |
+| 10 | **"Local" = the read path, not the storage of record** | Events live in the vendor's cloud; the local SQLite file is a synced copy. TUI and agent read only the local file. |
 | 11 | **Name: `quinto`** | From *quinto sabor*, the fifth taste — umami. Named after the *category* of taste, not the vendor, which is why it survived the source swap unscathed. Short, typeable, no vowel-dropping. |
 | 12 | **Session-grouped stream view** | One row per visit, expandable to the path through the site. The honest small-n form of the customer journey map from the original brief. |
 
@@ -188,7 +188,7 @@ They're written as a separate effort deliberately. Two ways to use them:
 
 ### What this does to Decision 1 ("local")
 
-The record of truth lives in GoatCounter; the local DuckDB is a **synced copy**. Worth being precise: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
+The record of truth lives in GoatCounter; the local SQLite file is a **synced copy**. Worth being precise: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
 
 ## Architecture
 
@@ -196,10 +196,10 @@ The record of truth lives in GoatCounter; the local DuckDB is a **synced copy**.
 flowchart TD
     V["Visitor's browser<br/>(goatcounter, ~3.5KB)"] -->|pageviews| G["GoatCounter<br/>storage of record"]
     G -->|"export API + cursor"| S["sync command<br/>YOU BUILD THIS"]
-    S -->|writes| D[("quinto.duckdb<br/>local file")]
+    S -->|writes| D[("quinto.db<br/>local file")]
     D --> T["TUI<br/>YOU BUILD THIS"]
     D --> A["Agent in the terminal"]
-    F["demo fixture"] -.->|seeds| DD[("quinto-demo.duckdb")]
+    F["demo fixture"] -.->|seeds| DD[("quinto-demo.db")]
     DD --> T
 ```
 
@@ -211,9 +211,9 @@ Three things. Everything else is configuration.
 
 | Piece | What it does |
 |---|---|
-| `sync` | GoatCounter export → DuckDB. Incremental via their `last_hit_id` cursor, idempotent on hit ID. |
-| TUI | Reads DuckDB with SQL. Stream view first, overview second. |
-| `query` subcommand | Runs raw SQL against the local file and prints it. **This is the agent interface** — an agent needs no DuckDB install and no schema hunting. |
+| `sync` | GoatCounter export → SQLite. Incremental via their `last_hit_id` cursor, idempotent on hit ID. |
+| TUI | Reads SQLite with SQL. Stream view first, overview second. |
+| `query` subcommand | Runs raw SQL against the local file and prints it. **This is the agent interface** — an agent needs no database install and no schema hunting. |
 
 ### Local schema (draft)
 
@@ -243,7 +243,7 @@ Maps 1:1 onto GoatCounter's export columns — no translation layer, no invented
            async src="//gc.zgo.at/count.js"></script>
    ```
 4. Generate an **API key** (top menu → your username → API)
-5. `quinto sync` → populates the local DuckDB
+5. `quinto sync` → populates the local SQLite file
 6. `quinto` → TUI reads the file
 7. Agent: `quinto query "select path, count(*) from hits where bot = 0 group by 1"`
 
