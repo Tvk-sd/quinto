@@ -84,7 +84,7 @@ func TestEmptyDaysDrawNothing(t *testing.T) {
 	m := overviewModel(t)
 
 	day := func(n int, offset int) store.DayCount {
-		return store.DayCount{Day: time.Now().AddDate(0, 0, -offset), N: n, Has: true}
+		return store.DayCount{Day: time.Now().AddDate(0, 0, -offset), N: n}
 	}
 	out := m.sparkline([]store.DayCount{day(10, 4), day(0, 3), day(5, 2), day(0, 1), day(8, 0)})
 
@@ -105,8 +105,8 @@ func TestSparseDataIsLabelledAsSparse(t *testing.T) {
 	m := overviewModel(t)
 
 	out := m.sparkline([]store.DayCount{
-		{Day: time.Now(), N: 3, Has: true},
-		{Day: time.Now().AddDate(0, 0, -1), N: 1, Has: true},
+		{Day: time.Now(), N: 3},
+		{Day: time.Now().AddDate(0, 0, -1), N: 1},
 	})
 	if !strings.Contains(out, "too few days") {
 		t.Errorf("sparse data should be labelled, got:\n%s", out)
@@ -115,7 +115,7 @@ func TestSparseDataIsLabelledAsSparse(t *testing.T) {
 	// And a healthy range should not carry the warning.
 	var many []store.DayCount
 	for i := 0; i < 14; i++ {
-		many = append(many, store.DayCount{Day: time.Now().AddDate(0, 0, -i), N: 5 + i, Has: true})
+		many = append(many, store.DayCount{Day: time.Now().AddDate(0, 0, -i), N: 5 + i})
 	}
 	if strings.Contains(m.sparkline(many), "too few days") {
 		t.Error("a full range should not be labelled sparse")
@@ -140,7 +140,7 @@ func TestOverviewOnEmptyRangeSaysSo(t *testing.T) {
 	if got := m.sparkline(nil); !strings.Contains(got, "no data") {
 		t.Errorf("an empty series should say so, got %q", got)
 	}
-	if got := m.sparkline([]store.DayCount{{Day: time.Now(), N: 0, Has: true}}); !strings.Contains(got, "no pageviews") {
+	if got := m.sparkline([]store.DayCount{{Day: time.Now(), N: 0}}); !strings.Contains(got, "no pageviews") {
 		t.Errorf("a range with zero traffic should say so, got %q", got)
 	}
 }

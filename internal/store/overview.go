@@ -33,7 +33,6 @@ type Count struct {
 type DayCount struct {
 	Day time.Time
 	N   int
-	Has bool // whether the day is inside the queried range at all
 }
 
 // LoadOverview summarises human traffic since a cutoff. A zero cutoff means
@@ -153,7 +152,7 @@ func (db *DB) dailySeries(ctx context.Context, since time.Time) ([]DayCount, err
 
 	var out []DayCount
 	for d := start; !d.After(today); d = d.AddDate(0, 0, 1) {
-		out = append(out, DayCount{Day: d, N: counts[d.Format("2006-01-02")], Has: true})
+		out = append(out, DayCount{Day: d, N: counts[d.Format("2006-01-02")]})
 	}
 	return out, nil
 }
