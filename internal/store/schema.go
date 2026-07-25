@@ -57,19 +57,50 @@ CREATE TABLE IF NOT EXISTS sync_state (
 // So at minimum: session, first_seen, last_seen, page_count, entry_path,
 // referrer, country, browser.
 //
-// TODO(till): write this view. Four decisions are baked into it:
+// Four decisions are baked in (Till, 2026-07-25):
 //
-//  1. Midnight split. GoatCounter's session hash rotates daily, so a visit
-//     spanning midnight arrives as two sessions. Accept it and document the
-//     quirk, or try to stitch across the boundary?
-//  2. Entry hit. GoatCounter flags it with first_visit = 1. Trust that flag, or
-//     derive it as the earliest created_at in the session? They can disagree.
-//  3. One-page visits. last_seen - first_seen is 0, but the real duration is
-//     unknown — you can't see when someone left. Report 0, or NULL?
-//  4. Bots. Filter them here so callers can't forget, or leave them in so the
-//     exclusion stays a WHERE clause the user can lift? PLAN.md argues for the
-//     second; this view is where that argument gets tested.
-const sessionsDDL = ``
+//  1. Midnight split: accepted, not stitched. GoatCounter's session hash
+//     rotates daily, so a visit crossing midnight appears as two sessions.
+//     Stitching would mean guessing that two hashes are the same person, which
+//     is exactly the inference their design refuses to make.
+//  2. Entry hit: trust GoatCounter's first_visit flag rather than deriving it
+//     from the earliest timestamp. Consequence — if a session's entry hit
+//     predates the first sync, entry_path and referrer are NULL rather than
+//     wrong. Honest, and self-correcting once the entry hit is synced.
+//  3. Single-page visits: duration is NULL, not 0. You cannot observe when
+//     someone left, so 0 would assert something untrue. NULL also keeps
+//     aggregates sane — AVG skips it, so "average visit duration" means the
+//     average of visits we could actually measure, instead of being dragged
+//     toward zero by every unmeasurable one. At this traffic most visits are
+//     single-page, so the difference is not cosmetic.
+//  4. Bots stay in. Filtering here would make exclusion invisible and
+//     permanent; leaving them keeps it a WHERE clause the user can lift.
+//
+// Recreated on every open so the definition always matches this file.
+const sessionsDDL = `
+DROP VIEW IF EXISTS sessions;
+CREATE VIEW sessions AS
+SELECT
+	session,
+	MIN(created_at) AS first_seen,
+	MAX(created_at) AS last_seen,
+	COUNT(*)        AS page_count,
+	MAX(bot)        AS bot,
+
+	MAX(CASE WHEN first_visit = 1 THEN path            END) AS entry_path,
+	MAX(CASE WHEN first_visit = 1 THEN referrer        END) AS referrer,
+	MAX(CASE WHEN first_visit = 1 THEN referrer_scheme END) AS referrer_scheme,
+	MAX(CASE WHEN first_visit = 1 THEN country         END) AS country,
+	MAX(CASE WHEN first_visit = 1 THEN browser         END) AS browser,
+	MAX(CASE WHEN first_visit = 1 THEN system          END) AS system,
+
+	-- NULL for single-page visits: unmeasurable, not zero.
+	CASE WHEN COUNT(*) > 1
+		THEN unixepoch(MAX(created_at)) - unixepoch(MIN(created_at))
+	END AS duration_seconds
+FROM hits
+GROUP BY session;
+`
 
 // allDDL runs in order on every open. Statements are idempotent so this
 // doubles as the migration path until there's a reason for something heavier.

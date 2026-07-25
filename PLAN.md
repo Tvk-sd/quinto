@@ -233,6 +233,20 @@ sessions  -- a VIEW over hits, grouped by session:
 
 Maps 1:1 onto GoatCounter's export columns — no translation layer, no invented vocabulary. `bot` stays in the table rather than being filtered at sync time, so the exclusion is visible and reversible rather than a silent data loss.
 
+### The session model — four decisions (Till, 2026-07-25)
+
+Everything the stream view can show comes from the `sessions` view, so these are load-bearing.
+
+**1. The midnight split is accepted, not stitched.** GoatCounter's session hash rotates daily, so **a visit crossing midnight appears as two sessions.** This is a real artefact and will show up in the data. It isn't corrected, because stitching would mean guessing that two hashes belong to one person — precisely the inference GoatCounter's design refuses to make, and the reason it needs no consent banner. Document it in the README; don't quietly paper over it.
+
+**2. The entry hit is whatever GoatCounter flags `first_visit = 1`** — not the earliest timestamp we happen to hold. Consequence: if a session's entry hit predates the first sync, `entry_path` and `referrer` are **NULL rather than wrong**. Self-correcting once that hit is synced, and a boundary artefact of the first sync only.
+
+**3. Single-page visits have NULL duration, not 0.** You cannot observe when someone left, so `0` would assert something untrue. It also keeps aggregates honest: `AVG` skips NULL, so "average visit duration" means *the average of visits we could actually measure* rather than a number dragged toward zero by every unmeasurable one. At this traffic most visits are single-page, so this is not a cosmetic choice.
+
+**4. Bots stay in the view.** Filtering there would make the exclusion invisible and permanent. Callers exclude with `WHERE bot = 0`, which the user can lift.
+
+Each decision has a test asserting it in `internal/store/schema_test.go` — they're design commitments, not incidental behaviour.
+
 ### Setup sequence
 
 1. Sign up at GoatCounter → you get `yourcode.goatcounter.com`
@@ -298,7 +312,7 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 - [x] ~~Sign up for Umami Cloud~~ **Abandoned 2026-07-25 — API costs €20/month.**
 - [ ] **Sign up at GoatCounter**, then **enable "Individual pageviews" in site settings** — off by default, and nothing works without it.
 - [ ] **Paste the GoatCounter snippet into the site's `<head>`.** Nothing is blocked by it, but every day without it is a day of history you can't get back.
-- [ ] **Generate a GoatCounter API key** — blocks ticket 01.
+- [ ] **Create a GoatCounter API key** — blocks ticket 01. It does not exist until you make one: *your username in the top menu → API → create*. Grant it the export/statistics permission; the API returns `403` for a key missing it. Having the tracker on a site is not the same as having API access.
 - [x] ~~Smallest useful stream view~~ **Session-grouped, expandable** (2026-07-25). One row per visit, expands to the path through the site. The honest small-n form of the customer journey map from the original brief.
 - [x] ~~Break the build into tickets~~ **Six tracer bullets** in `.scratch/quinto-v1/issues/` (2026-07-25).
 - [x] ~~Name~~ **`quinto`** (2026-07-25). Check availability before publishing: GitHub org/repo, Homebrew formula, and the `quinto` name on any registry you'd publish to.
