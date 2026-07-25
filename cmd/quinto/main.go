@@ -6,20 +6,27 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"text/tabwriter"
+	"time"
 
+	"github.com/Tvk-sd/quinto/internal/config"
+	"github.com/Tvk-sd/quinto/internal/goatcounter"
 	"github.com/Tvk-sd/quinto/internal/store"
 )
 
 const usage = `quinto — web analytics in your terminal
 
 USAGE
+  quinto                        Show recent visits
+  quinto sync                   Pull new pageviews from GoatCounter
   quinto query <sql> [--json]   Run SQL against the local database
   quinto schema                 Print the database schema
   quinto path                   Print the database file location
@@ -74,11 +81,6 @@ func run(args []string) error {
 		return err
 	}
 
-	if len(positional) == 0 {
-		fmt.Fprint(os.Stderr, usage)
-		return nil
-	}
-
 	path := *dbPath
 	if path == "" {
 		p, err := store.DefaultPath("quinto.db")
@@ -88,7 +90,13 @@ func run(args []string) error {
 		path = p
 	}
 
+	if len(positional) == 0 {
+		return runRecent(path)
+	}
+
 	switch positional[0] {
+	case "sync":
+		return runSync(path)
 	case "query":
 		if len(positional) < 2 {
 			return fmt.Errorf("query needs SQL: quinto query \"select * from sessions limit 5\"")
@@ -124,6 +132,139 @@ func runQuery(path, query string, asJSON bool) error {
 	if asJSON {
 		return writeJSON(res)
 	}
+	return writeTable(res)
+}
+
+// runSync pulls everything GoatCounter has since the stored cursor.
+//
+// Exports are rate limited to roughly one an hour, so hitting that limit is a
+// normal outcome, not a failure: it reports when the next sync is possible and
+// exits successfully.
+func runSync(path string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	db, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	state, err := db.SyncState(ctx)
+	if err != nil {
+		return err
+	}
+
+	var cursor *int64
+	if state.Synced && state.LastHitID > 0 {
+		cursor = &state.LastHitID
+		fmt.Fprintf(os.Stderr, "syncing from hit %d…\n", state.LastHitID)
+	} else {
+		fmt.Fprintln(os.Stderr, "first sync — fetching everything GoatCounter has…")
+	}
+
+	client := goatcounter.New(cfg.Site, cfg.Token)
+
+	job, err := client.CreateExport(ctx, cursor)
+	if err != nil {
+		var rl *goatcounter.RateLimitError
+		if errors.As(err, &rl) {
+			fmt.Printf("Nothing to do — GoatCounter allows about one export an hour.\n"+
+				"Next sync possible in %s.\n", rl.RetryAfter.Round(time.Minute))
+			return nil
+		}
+		return err
+	}
+
+	done, err := client.WaitForExport(ctx, job.ID, 2*time.Second)
+	if err != nil {
+		return err
+	}
+
+	raw, err := client.DownloadExport(ctx, job.ID)
+	if err != nil {
+		return err
+	}
+
+	hits, err := goatcounter.ParseExport(bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+
+	inserted, err := db.InsertHits(ctx, toStoreHits(hits))
+	if err != nil {
+		return err
+	}
+	if err := db.RecordSync(ctx, done.LastHitID, time.Now(), int64(inserted)); err != nil {
+		return err
+	}
+
+	switch {
+	case len(hits) == 0:
+		fmt.Println("No new pageviews since the last sync.")
+	case inserted == 0:
+		fmt.Printf("%d pageviews fetched, all already stored.\n", len(hits))
+	default:
+		fmt.Printf("Synced %d new pageviews.\n", inserted)
+	}
+	return nil
+}
+
+// toStoreHits converts between the two packages' hit types. They are
+// deliberately separate: the parser must not depend on the store, nor the
+// store on the API's shape.
+func toStoreHits(in []goatcounter.Hit) []store.Hit {
+	out := make([]store.Hit, len(in))
+	for i, h := range in {
+		out[i] = store.Hit{
+			Key: h.Key, Path: h.Path, Title: h.Title, IsEvent: h.IsEvent,
+			Browser: h.Browser, System: h.System, Session: h.Session, Bot: h.Bot,
+			Referrer: h.Referrer, ReferrerScheme: h.ReferrerScheme,
+			ScreenSize: h.ScreenSize, Country: h.Country,
+			FirstVisit: h.FirstVisit, CreatedAt: h.CreatedAt,
+		}
+	}
+	return out
+}
+
+// runRecent lists the most recent visits, humans only. It always states how
+// old the data is: with an hourly sync ceiling, presenting stale numbers as
+// current would be the interface lying.
+func runRecent(path string) error {
+	db, err := store.OpenReadOnly(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	res, err := db.Query(ctx, `
+		SELECT substr(first_seen, 12, 5) AS time,
+		       country,
+		       browser,
+		       COALESCE(NULLIF(referrer, ''), 'direct') AS referrer,
+		       page_count AS pages,
+		       COALESCE(duration_seconds || 's', '-') AS duration,
+		       COALESCE(entry_path, '?') AS entry
+		FROM sessions
+		WHERE bot = 0
+		ORDER BY first_seen DESC
+		LIMIT 25`)
+	if err != nil {
+		return err
+	}
+
+	if state, serr := db.SyncState(ctx); serr == nil && state.Synced {
+		age := time.Since(state.LastSyncedAt).Round(time.Minute)
+		fmt.Printf("data as of %s (%s ago) · %d pageviews stored\n\n",
+			state.LastSyncedAt.Local().Format("15:04"), age, state.SyncedRows)
+	} else {
+		fmt.Println("never synced — run `quinto sync`")
+	}
+
 	return writeTable(res)
 }
 

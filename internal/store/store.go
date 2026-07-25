@@ -62,29 +62,4 @@ func (db *DB) migrate() error {
 	return nil
 }
 
-// LastHitID returns GoatCounter's cursor from the previous sync, and whether
-// one has been recorded. A missing cursor means "sync everything".
-func (db *DB) LastHitID() (int64, bool, error) {
-	var id sql.NullInt64
-	err := db.QueryRow(`SELECT last_hit_id FROM sync_state WHERE id = 1`).Scan(&id)
-	if err == sql.ErrNoRows {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, fmt.Errorf("reading sync cursor: %w", err)
-	}
-	return id.Int64, id.Valid, nil
-}
-
-// SetLastHitID records the cursor returned by GoatCounter's export.
-func (db *DB) SetLastHitID(id int64, syncedAt string) error {
-	_, err := db.Exec(`
-		INSERT INTO sync_state (id, last_hit_id, last_synced_at) VALUES (1, ?, ?)
-		ON CONFLICT (id) DO UPDATE SET last_hit_id = excluded.last_hit_id,
-		                               last_synced_at = excluded.last_synced_at`,
-		id, syncedAt)
-	if err != nil {
-		return fmt.Errorf("writing sync cursor: %w", err)
-	}
-	return nil
-}
+// Cursor state lives in insert.go alongside the write path.

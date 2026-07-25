@@ -1,0 +1,4 @@
+2Path,Title,Event,UserAgent,Browser,System,Session,Bot,Referrer,Referrer scheme,Screen size,Location,FirstVisit,Date
+/quinto-test,quinto diagnostic - entry,0,,Chrome 126,macOS 10.15,765a3344db6641a0-af6b3918f66ae7fb,0,Hacker News,g,"1920,0,1",DE,1,2026-07-25T11:32:39Z
+/quinto-test/second,quinto diagnostic - second page,0,,Chrome 126,macOS 10.15,765a3344db6641a0-af6b3918f66ae7fb,0,,o,"1920,0,1",DE,1,2026-07-25T11:32:43Z
+/quinto-test/third,quinto diagnostic - third page,0,,Chrome 126,macOS 10.15,765a3344db6641a0-af6b3918f66ae7fb,0,,o,"1920,0,1",DE,1,2026-07-25T11:32:47Z

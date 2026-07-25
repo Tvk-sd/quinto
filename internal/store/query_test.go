@@ -16,9 +16,11 @@ func seeded(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	insertHit(t, db, 1, "sess-a", "/", "2026-07-25T14:22:00Z", 1, 0)
-	insertHit(t, db, 2, "sess-a", "/process", "2026-07-25T14:23:00Z", 0, 0)
-	insertHit(t, db, 3, "sess-bot", "/", "2026-07-25T04:00:00Z", 1, 1)
+	insert(t, db,
+		hit("k1", "sess-a", "/", "2026-07-25T14:22:00Z", true, 0),
+		hit("k2", "sess-a", "/process", "2026-07-25T14:23:00Z", false, 0),
+		hit("k3", "sess-bot", "/", "2026-07-25T04:00:00Z", true, 1),
+	)
 	db.Close()
 	return path
 }
@@ -31,7 +33,7 @@ func TestQueryReturnsColumnsAndRows(t *testing.T) {
 	defer db.Close()
 
 	res, err := db.Query(context.Background(),
-		`SELECT path, bot FROM hits ORDER BY hit_id`)
+		`SELECT path, bot FROM hits ORDER BY hit_key`)
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -60,7 +62,7 @@ func TestQueryIsReadOnly(t *testing.T) {
 	for _, stmt := range []string{
 		`DELETE FROM hits`,
 		`DROP TABLE hits`,
-		`INSERT INTO hits (hit_id, session, path, created_at) VALUES (99, 's', '/x', '2026-01-01T00:00:00Z')`,
+		`INSERT INTO hits (hit_key, session, path, created_at) VALUES ('x', 's', '/x', '2026-01-01T00:00:00Z')`,
 		`UPDATE hits SET path = '/hacked'`,
 	} {
 		if _, err := db.Query(context.Background(), stmt); err == nil {
