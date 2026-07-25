@@ -305,7 +305,7 @@ func runList(path string, isDemo bool) error {
 
 	ctx := context.Background()
 	res, err := db.Query(ctx, `
-		SELECT substr(first_seen, 6, 5) || ' ' || substr(first_seen, 12, 5) AS when_,
+		SELECT substr(first_seen, 6, 5) || ' ' || substr(first_seen, 12, 5) AS "when",
 		       country,
 		       browser,
 		       COALESCE(NULLIF(referrer, ''), 'direct') AS referrer,
