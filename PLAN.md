@@ -198,6 +198,12 @@ The work queue lives in **`.scratch/quinto-v1/issues/`** — six tracer-bullet t
 
 Two ordering choices that aren't arbitrary: **02 precedes 03** so the TUI is designed against realistic density rather than six real rows, and **04 depends only on 01** so the agent interface can be built in parallel with the TUI.
 
+Ticket 01 additionally carries the repo skeleton, and is gated on a human prerequisite — the Umami API key — not on another ticket.
+
+**Testing policy:** test the sync logic, not the rendering. Idempotency and the incremental watermark are claims you can't verify by eye. TUI output gets looked at, not asserted on. Two weekends is not a budget for more, and this is where tests actually pay.
+
+**Demo vs real data:** `quinto demo` writes to a *separate database file* selected by a flag — not a source column in the shared schema. The schema is the agent interface and stays free of internal bookkeeping, and demo data can't clobber real data by construction.
+
 ### Cut from the plan
 
 Netnography, interviews, kill criteria, segment validation. All correct for a product; all waste for a portfolio piece. Deleted on purpose — if this ever turns back into a product, restore them from git history.

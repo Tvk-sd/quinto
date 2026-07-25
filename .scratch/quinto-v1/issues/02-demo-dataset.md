@@ -10,7 +10,7 @@ This exists for three reasons, and all three matter:
 
 The data has to be plausible, not random: sessions with coherent paths through a site, referrers that make sense together, a believable spread of geography and browsers, and a diurnal traffic curve rather than a flat line. Seeded so it's reproducible.
 
-It writes into the same schema as ticket 01, so every downstream screen is identical whether it's showing real or seeded data.
+It writes the same schema as ticket 01 but into a **separate database file**, selected by a flag. That keeps the two cleanly apart without adding a source column to the schema — and the schema is the agent interface, so it stays free of bookkeeping that only matters internally. It also makes "demo can't clobber real data" true by construction rather than by a guard.
 
 **Blocked by:** 01 — needs the schema to exist.
 
@@ -21,5 +21,6 @@ It writes into the same schema as ticket 01, so every downstream screen is ident
 - [ ] Referrers, geography, browsers and session durations are plausibly distributed
 - [ ] Traffic follows a day/night curve rather than being uniform
 - [ ] Generation is seeded and reproducible
-- [ ] Demo data is visibly distinguishable from real data, so nobody mistakes it for their own traffic
-- [ ] Running it does not destroy previously synced real data without an explicit confirmation
+- [ ] Demo data is written to a separate database file, never to the real one
+- [ ] The TUI and `query` can be pointed at the demo file by a flag
+- [ ] While viewing demo data the interface says so, so nobody mistakes it for their own traffic
