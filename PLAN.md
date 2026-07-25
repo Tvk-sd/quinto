@@ -73,6 +73,7 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 - ~~Umami Cloud's free tier is usable~~ — **disproven 2026-07-25.** API access is €20/month. Its data model was fine; the price wasn't.
 - GoatCounter's export carries session IDs and a bot flag — **verified 2026-07-25** against their CSV export docs.
 - GoatCounter stays free for this usage. ← *"currently offered for free for reasonable public usage" is their wording — not a contract. Accepted risk.*
+- **GoatCounter does not auto-track SPA route changes** — unlike Umami, which does it natively. Its script counts one pageview per full page load; client-side navigation needs an explicit `goatcounter.count()` call. The dogfood site (tillvonkrueger.com) is a Vite SPA, so without that wiring **every real session will be single-page**: `page_count = 1`, `duration_seconds = NULL`, nothing to expand in the stream view. The expandable journey UI will be exercised almost entirely by the demo dataset until a multi-page site is instrumented. Reinforces ticket 02 being a first-class deliverable rather than polish.
 
 ---
 
