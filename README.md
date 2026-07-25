@@ -7,10 +7,15 @@ terminal UI and the SQL interface look at the same file, so the agent already
 running in your terminal can interrogate your traffic directly — no API, no
 credentials, no rate limit in the way.
 
-<!-- DEMO GIF: generate with `make demo-gif` (requires vhs), then commit docs/demo.gif -->
-![quinto](docs/demo.gif)
-
----
+<!--
+  DEMO GIF goes here. Generate it with:
+      brew install vhs
+      make demo-gif
+  then commit docs/demo.gif and replace this comment with:
+      ![quinto](docs/demo.gif)
+  Left as a comment rather than a link so the README never shows a broken
+  image — the worst possible first impression for a tool judged on its looks.
+-->
 
 ## What it looks like
 
