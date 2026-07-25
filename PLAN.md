@@ -2,9 +2,9 @@
 
 *From "quinto sabor" — the fifth taste. Umami is the fifth taste, and Umami is the data source.*
 
-**Status:** Portfolio project. Validation phase cut. Ready to scope the build.
+**Status:** v1 built. All six tickets closed. Two release steps left, both Till's.
 **Success criterion:** Listed on [awesome-tuis → Dashboards](https://github.com/rothgar/awesome-tuis#dashboards)
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 
 ---
 
@@ -283,14 +283,18 @@ Steps 1–4 are an afternoon and require no code. The demo fixture writes the **
 
 The work queue lives in **`.scratch/quinto-v1/issues/`** — six tracer-bullet tickets, each with its blocking edges. This section is the shape; the tickets are the detail.
 
-| # | Ticket | Blocked by |
+| # | Ticket | Status |
 |---|---|---|
-| 01 | Sync one real visit from GoatCounter to the terminal | — |
-| 02 | Demo dataset | 01 |
-| 03 | Stream view TUI | 01, 02 |
-| 04 | `quinto query` — the agent interface | 01 |
-| 05 | Overview / site health screen | 03 |
-| 06 | Ship | 03, 04, 05 |
+| 01 | Sync one real visit from GoatCounter to the terminal | ✅ closed 2026-07-25 |
+| 02 | Demo dataset | ✅ closed 2026-07-25 |
+| 03 | Stream view TUI | ✅ closed 2026-07-25 |
+| 04 | `quinto query` — the agent interface | ✅ closed 2026-07-25 |
+| 05 | Overview / site health screen | ✅ closed 2026-07-25 |
+| 06 | Ship | ⚠️ built; GIF + publish are Till's |
+
+Shipped inside the two-weekend budget: `sync`, `demo`, `list`, `query`,
+`schema`, `path`, and a two-screen TUI. Static binaries for macOS and Linux on
+both architectures, built from one machine with no cgo.
 
 Two ordering choices that aren't arbitrary: **02 precedes 03** so the TUI is designed against realistic density rather than six real rows, and **04 depends only on 01** so the agent interface can be built in parallel with the TUI.
 
@@ -321,17 +325,25 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 
 ## Offen — bei Till
 
-- [x] ~~Phase 0 check — can Cloudflare give per-request rows?~~ **No. Enterprise only.** Source switched to Umami.
-- [x] ~~Umami self-hosted vs PostHog~~ **Umami Cloud. No self-hosting.** (2026-07-25)
-- [x] ~~Sign up for Umami Cloud~~ **Abandoned 2026-07-25 — API costs €20/month.**
-- [ ] **Sign up at GoatCounter**, then **enable "Individual pageviews" in site settings** — off by default, and nothing works without it.
-- [ ] **Paste the GoatCounter snippet into the site's `<head>`.** Nothing is blocked by it, but every day without it is a day of history you can't get back.
-- [ ] **Create a GoatCounter API key** — blocks ticket 01. It does not exist until you make one: *your username in the top menu → API → create*. Grant it the export/statistics permission; the API returns `403` for a key missing it. Having the tracker on a site is not the same as having API access.
-- [x] ~~Smallest useful stream view~~ **Session-grouped, expandable** (2026-07-25). One row per visit, expands to the path through the site. The honest small-n form of the customer journey map from the original brief.
-- [x] ~~Break the build into tickets~~ **Six tracer bullets** in `.scratch/quinto-v1/issues/` (2026-07-25).
-- [x] ~~Name~~ **`quinto`** (2026-07-25). Check availability before publishing: GitHub org/repo, Homebrew formula, and the `quinto` name on any registry you'd publish to.
-- [ ] Framework: **Go (Bubble Tea)** unless you have Rust. Not really open — the single-binary promise rules out Ink, and Bubble Tea has the richest component set for dashboards. Confirm and move on.
-- [ ] Optional: verify the 68 in Cloudflare's bot breakdown. Doesn't block anything, but tells you what real data will look like next to your seed data.
+Everything that blocked the build is resolved and recorded in the ticket files.
+Two release steps remain, both deliberately not automated.
+
+- [ ] **Record the demo GIF.** `brew install vhs && make demo-gif`, commit
+      `docs/demo.gif`, then replace the placeholder comment at the top of the
+      README with `![quinto](docs/demo.gif)`. Not done automatically because it
+      installs vhs, ffmpeg and ttyd on your machine. **This is the single
+      highest-leverage item left** — for a terminal tool the GIF is the entire
+      first impression, and the awesome-tuis listing follows from it.
+- [ ] **Publish.** Create the GitHub repo, push, cut a release with the
+      binaries from `make release`, then open the PR against awesome-tuis under
+      Dashboards. Outward-facing actions on your accounts.
+
+Optional, unblocking nothing:
+
+- [ ] Your own pageviews reach GoatCounter fine — the earlier ad-blocker
+      suspicion was wrong, confirmed by a real sync. Nothing to fix.
+- [ ] Consider wiring `goatcounter.count()` into tillvonkrueger.com's router,
+      so client-side navigation is recorded rather than only full loads.
 
 ---
 
