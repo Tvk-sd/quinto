@@ -334,6 +334,10 @@ Two release steps remain, both deliberately not automated.
       installs vhs, ffmpeg and ttyd on your machine. **This is the single
       highest-leverage item left** — for a terminal tool the GIF is the entire
       first impression, and the awesome-tuis listing follows from it.
+      Now also doubles as the **visual sign-off on the Charm v2 upgrade**: the
+      tape needs no edits, but nobody has yet watched v2's renderer paint this
+      app in a real terminal emulator. Unit tests cover the rendered strings;
+      only the GIF covers what it looks like.
 - [ ] **Publish.** Create the GitHub repo, push, cut a release with the
       binaries from `make release`, then open the PR against awesome-tuis under
       Dashboards. Outward-facing actions on your accounts.

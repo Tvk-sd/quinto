@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/Tvk-sd/quinto/internal/demo"
 	"github.com/Tvk-sd/quinto/internal/store"
@@ -42,7 +42,7 @@ func demoModel(t *testing.T) *Model {
 
 func TestRendersHeaderAndVisits(t *testing.T) {
 	m := demoModel(t)
-	out := m.View()
+	out := m.render()
 
 	for _, want := range []string{"quinto", "DEMO DATA", "visits", "expand", "quit"} {
 		if !strings.Contains(out, want) {
@@ -59,7 +59,7 @@ func TestRendersHeaderAndVisits(t *testing.T) {
 func TestBotsHiddenByDefaultButDisclosed(t *testing.T) {
 	m := demoModel(t)
 
-	if !strings.Contains(m.View(), "bot visits hidden") {
+	if !strings.Contains(m.render(), "bot visits hidden") {
 		t.Error("header should disclose that bot visits are hidden")
 	}
 	for _, s := range m.sessions {
@@ -68,7 +68,7 @@ func TestBotsHiddenByDefaultButDisclosed(t *testing.T) {
 		}
 	}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: 'b', Text: "b"})
 	m = updated.(*Model)
 
 	var bots int
@@ -80,7 +80,7 @@ func TestBotsHiddenByDefaultButDisclosed(t *testing.T) {
 	if bots == 0 {
 		t.Error("pressing b should bring bot visits into the list")
 	}
-	if !strings.Contains(m.View(), "bot visits shown") {
+	if !strings.Contains(m.render(), "bot visits shown") {
 		t.Error("header should say bots are shown")
 	}
 }
@@ -97,10 +97,10 @@ func TestExpandingShowsTheJourney(t *testing.T) {
 	}
 	linesBefore, _, _ := m.buildLines()
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = updated.(*Model)
 
-	if !strings.Contains(m.View(), "▼") {
+	if !strings.Contains(m.render(), "▼") {
 		t.Error("expanded visit should show the open marker")
 	}
 
@@ -115,16 +115,35 @@ func TestExpandingShowsTheJourney(t *testing.T) {
 	}
 
 	// The journey's paths must actually be on screen.
-	view := m.View()
+	view := m.render()
 	if !strings.Contains(view, hits[0].Path) {
 		t.Errorf("expanded view should show the first step %q", hits[0].Path)
 	}
 
 	// And collapsing puts it back.
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = updated.(*Model)
 	if collapsed, _, _ := m.buildLines(); len(collapsed) != len(linesBefore) {
 		t.Error("collapsing should restore the previous row count")
+	}
+}
+
+// Space is an alias for enter, and it is the one binding the Bubble Tea v2
+// upgrade had to rewrite: v1 reported the key as " ", v2 reports it as "space".
+// The help text promises it, so it gets a test.
+func TestSpaceExpandsLikeEnter(t *testing.T) {
+	m := demoModel(t)
+
+	before, _, _ := m.buildLines()
+
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	m = updated.(*Model)
+
+	if after, _, _ := m.buildLines(); len(after) <= len(before) {
+		t.Error("space should expand the selected visit, same as enter")
+	}
+	if !strings.Contains(m.render(), "▼") {
+		t.Error("space-expanded visit should show the open marker")
 	}
 }
 
@@ -148,11 +167,11 @@ func TestExpandingScrollsTheJourneyIntoView(t *testing.T) {
 	}
 	m.cursor = target
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = updated.(*Model)
 
 	hits := m.hits[m.sessions[target].ID]
-	view := m.View()
+	view := m.render()
 
 	var shown int
 	for _, h := range hits {
@@ -172,7 +191,7 @@ func TestNavigationStaysInBounds(t *testing.T) {
 	m := demoModel(t)
 
 	for i := 0; i < len(m.sessions)+20; i++ {
-		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		updated, _ := m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 		m = updated.(*Model)
 	}
 	if m.cursor != len(m.sessions)-1 {
@@ -180,7 +199,7 @@ func TestNavigationStaysInBounds(t *testing.T) {
 	}
 
 	for i := 0; i < len(m.sessions)+20; i++ {
-		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		updated, _ := m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 		m = updated.(*Model)
 	}
 	if m.cursor != 0 {
@@ -195,10 +214,10 @@ func TestLinesFitNarrowTerminals(t *testing.T) {
 		m := demoModel(t)
 		m.width = width
 		m.cursor = 0
-		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = updated.(*Model)
 
-		for i, line := range strings.Split(m.View(), "\n") {
+		for i, line := range strings.Split(m.render(), "\n") {
 			if got := len([]rune(stripANSI(line))); got > width {
 				t.Errorf("width %d: line %d is %d runes: %q", width, i, got, line)
 			}
@@ -240,7 +259,7 @@ func TestEmptyDatabaseExplainsWhatToDo(t *testing.T) {
 	}
 	m.width, m.height = 80, 24
 
-	out := m.View()
+	out := m.render()
 	if !strings.Contains(out, "sync") || !strings.Contains(out, "demo") {
 		t.Errorf("an empty view should point at sync and demo:\n%s", out)
 	}

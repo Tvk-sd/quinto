@@ -12,41 +12,49 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/Tvk-sd/quinto/internal/store"
 )
 
 const sessionLimit = 500
 
+// adaptive picks a colour by terminal background. Lip Gloss v2 dropped the
+// built-in AdaptiveColor; compat keeps the v1 behaviour of detecting the
+// background once, globally, which is all this app needs.
+func adaptive(light, dark string) compat.AdaptiveColor {
+	return compat.AdaptiveColor{Light: lipgloss.Color(light), Dark: lipgloss.Color(dark)}
+}
+
 var (
-	dim = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "245", Dark: "241"})
+	dim = lipgloss.NewStyle().Foreground(adaptive("245", "241"))
 
 	header = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "236", Dark: "252"}).
+		Foreground(adaptive("236", "252")).
 		Bold(true)
 
 	demoTag = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "130", Dark: "214"}).
+		Foreground(adaptive("130", "214")).
 		Bold(true)
 
 	selected = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "27", Dark: "117"}).
+			Foreground(adaptive("27", "117")).
 			Bold(true)
 
 	pathStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "22", Dark: "114"})
+			Foreground(adaptive("22", "114"))
 
 	eventStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "97", Dark: "141"})
+			Foreground(adaptive("97", "141"))
 
 	botStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "244", Dark: "240"}).
+			Foreground(adaptive("244", "240")).
 			Italic(true)
 
 	errStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "160", Dark: "203"})
+			Foreground(adaptive("160", "203"))
 )
 
 type screen int
@@ -134,7 +142,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
@@ -156,7 +164,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "pgdown":
 			m.cursor = min(len(m.sessions)-1, m.cursor+10)
 
-		case "enter", " ", "right", "l":
+		case "enter", "space", "right", "l":
 			m.toggleExpand()
 		case "left", "h":
 			if s := m.current(); s != nil {
@@ -215,7 +223,16 @@ func (m *Model) toggleExpand() {
 	m.expanded[s.ID] = true
 }
 
-func (m *Model) View() string {
+// View wraps the rendered screen in a tea.View. Bubble Tea v2 made terminal
+// modes declarative, so the alt-screen request lives here rather than in a
+// program option.
+func (m *Model) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+	return v
+}
+
+func (m *Model) render() string {
 	if m.err != nil {
 		return errStyle.Render("error: "+m.err.Error()) + "\n\npress q to quit\n"
 	}
@@ -448,6 +465,6 @@ func Run(db *store.DB, isDemo bool) error {
 	if err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
+	_, err = tea.NewProgram(m).Run()
 	return err
 }

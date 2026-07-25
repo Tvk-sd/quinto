@@ -2,9 +2,10 @@ package tui
 
 import (
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	"strings"
 	"time"
+
+	"charm.land/lipgloss/v2"
 
 	"github.com/Tvk-sd/quinto/internal/store"
 )

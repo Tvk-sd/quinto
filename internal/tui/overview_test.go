@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/Tvk-sd/quinto/internal/store"
 )
@@ -13,13 +13,13 @@ import (
 func overviewModel(t *testing.T) *Model {
 	t.Helper()
 	m := demoModel(t)
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	return updated.(*Model)
 }
 
 func TestOverviewShowsHeadlineNumbers(t *testing.T) {
 	m := overviewModel(t)
-	out := m.View()
+	out := m.render()
 
 	for _, want := range []string{"visitors", "pageviews", "events", "single-page",
 		"top pages", "referrers", "countries", "pageviews per day"} {
@@ -33,7 +33,7 @@ func TestOverviewShowsHeadlineNumbers(t *testing.T) {
 // low traffic a rate implies precision the sample cannot support.
 func TestBounceIsShownWithItsDenominator(t *testing.T) {
 	m := overviewModel(t)
-	out := m.View()
+	out := m.render()
 
 	if strings.Contains(out, "bounce rate") || strings.Contains(out, "%") {
 		t.Error("overview should not present a bounce percentage")
@@ -47,23 +47,23 @@ func TestBounceIsShownWithItsDenominator(t *testing.T) {
 // period the numbers describe.
 func TestRangeIsSharedBetweenScreens(t *testing.T) {
 	m := overviewModel(t)
-	if !strings.Contains(m.View(), "7 days") {
-		t.Fatalf("expected the default range in the overview:\n%s", m.View())
+	if !strings.Contains(m.render(), "7 days") {
+		t.Fatalf("expected the default range in the overview:\n%s", m.render())
 	}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	m = updated.(*Model)
 	if m.rng != Range28 {
 		t.Errorf("range = %v, want 28 days", m.rng)
 	}
 
 	// Switch to the stream and back; the range must survive.
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m = updated.(*Model)
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m = updated.(*Model)
 
-	if !strings.Contains(m.View(), "28 days") {
+	if !strings.Contains(m.render(), "28 days") {
 		t.Error("the range should survive a screen switch")
 	}
 }
@@ -127,7 +127,7 @@ func TestOverviewFitsNarrowTerminals(t *testing.T) {
 		m := overviewModel(t)
 		m.width = width
 
-		for i, line := range strings.Split(m.View(), "\n") {
+		for i, line := range strings.Split(m.render(), "\n") {
 			if got := len([]rune(strings.TrimRight(stripANSI(line), " "))); got > width {
 				t.Errorf("width %d: line %d is %d runes: %q", width, i, got, line)
 			}
