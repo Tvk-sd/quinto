@@ -4,7 +4,15 @@
 
 Running `sync` twice must not duplicate anything or refetch what it already has. GoatCounter makes this easy rather than inventing your own bookkeeping: the export response carries a `last_hit_id`, and a new export accepts `start_from_hit_id`. **Store their cursor; don't invent a watermark.**
 
-The export is asynchronous — create it, poll until finished, download the gzipped result. Their docs note the JSON export is preferable to CSV for most uses; check it before committing to CSV parsing.
+The export is asynchronous — create it, poll until finished, download the result.
+
+**Verified against the live API 2026-07-25, and it differs from the docs in three ways:**
+
+1. **`format` must be sent explicitly.** The spec says it defaults to CSV; posting `{}` returns `unknown format: ""`. Send `{"format":"csv"}`.
+2. **Use CSV, not JSON** — despite GoatCounter's docs recommending JSON. Their OpenAPI spec is explicit that `start_from_hit_id` is the *CSV* cursor; JSON only offers `start_from_day`. Hit-level resumption beats day-level.
+3. **Exports are rate limited to about one per hour** — a separate, much tighter budget than the documented 4 req/s. This is the single most important constraint on this ticket.
+
+**The rate limit changes what sync is.** It is a deliberate, infrequent action. It cannot be run on demand, and it cannot be run twice to verify something. So: a `429` is a normal operating state, not a failure — capture the retry window from the response and tell the user when the next sync is possible. And the tool must be able to say **how old its data is**, because at an hourly cadence, silently stale numbers are the interface lying.
 
 The local schema is the spine of everything downstream and is what an agent reads, so it should be legible to something that has never seen the codebase. GoatCounter's export is flat — one row per hit, with `session` grouping them — so keep it flat and derive sessions as a view:
 
@@ -39,10 +47,12 @@ This matters beyond one account: whatever scope we use becomes the documented de
 - [ ] `quinto sync` authenticates with a GoatCounter API key, creates an export, waits for it to finish, downloads and ingests it
 - [ ] Individual pageviews land in a local SQLite file, one row per hit
 - [ ] A `sessions` view groups hits into visits
-- [ ] Running `quinto sync` twice in a row produces no duplicate rows
+- [ ] Ingesting the same export twice produces no duplicate rows (verified against fixtures — a second live sync is impossible within the rate limit)
 - [ ] Sync is incremental — subsequent runs pass the stored `last_hit_id` as `start_from_hit_id`
+- [ ] A `429` is reported as "next sync available in Xm", not as an error or a stack trace
+- [ ] The stored data's age is recorded and displayable, so stale numbers are never shown as current
 - [ ] An unexpected export format version aborts with a clear error instead of writing corrupt data
-- [ ] Cursor handling, idempotency and version checking are covered by tests against fixture exports
+- [ ] Cursor handling, idempotency, version checking and 429 handling are covered by tests against fixture exports
 - [ ] `quinto` prints the most recent visits as a readable table, excluding bots by default
 - [ ] A visit you make to your own site appears after a sync
 - [ ] The database file lives in a conventional per-user location, and its path is discoverable from the CLI

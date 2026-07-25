@@ -139,7 +139,17 @@ Also: ~3.5 KB script, no cookies, no GDPR notice required, and a JS-free pixel f
 
 ⚠️ **The export format is versioned** — the version number is the first field of the CSV header, and the docs strongly recommend erroring out if it changes rather than mis-parsing. Note also that GoatCounter's own docs say the **JSON export** is the better option for most people; check it before committing to CSV parsing.
 
-⚠️ **Rate limit: 4 requests/second.** Irrelevant at this volume, relevant if anyone points `quinto` at a large site.
+⚠️ **Exports are rate limited to roughly one per hour.** Discovered by hitting the live API, 2026-07-25 — `{"error": "rate limited exceeded; try again in 59m44s"}`. This is *not* the documented 4 req/s general limit; it's a separate, far tighter budget on export creation.
+
+**This shapes the product, not just the code.** `quinto sync` is a deliberate, infrequent action — it cannot be run on demand, and it cannot be run twice to check something. Consequences:
+
+- The TUI should show **how old the data is** and **when the next sync is possible**. At a one-hour cadence, silently stale data is a lie the interface would be telling.
+- A `429` is a normal operating state, not an error. Surface the retry window rather than a stack trace.
+- Ticket 01's idempotency criterion is verified against fixtures, not by running two live syncs. You can't.
+
+⚠️ **Use the CSV export, not JSON — despite GoatCounter's own docs recommending JSON.** From their OpenAPI spec: `start_from_hit_id` is *"Pagination cursor for CSV"*, while JSON only offers `start_from_day`. Hit-level resumption beats day-level, so CSV wins for incremental sync. Their advice is aimed at people doing one-off dumps.
+
+⚠️ **`format` must be sent explicitly.** The spec says it defaults to CSV, but posting `{}` returns `{"error":"unknown format: \"\""}`. Send `{"format":"csv"}`.
 
 ⚠️ **Durability risk, stated plainly:** GoatCounter is one maintainer, donation-supported, and "currently free" is not a contract. That's a genuine risk — mitigated by the fact that the sync boundary makes swapping sources cheap. This is now the third source, and the architecture has absorbed all three without touching the TUI. That's evidence the boundary is in the right place.
 
