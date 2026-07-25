@@ -56,11 +56,12 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 | 4 | **TUI, not a VS Code extension** | Editor-agnostic, works over SSH. Not "because people live in VS Code" — that argument points at an extension. |
 | 5 | **Scroll depth is cut** | Marketer feature. Needs long content pages and per-page volume. Neither exists. |
 | 6 | **Journey maps are cut** | Need ~500+ sessions/week to be anything but noise. Reframed to funnels, then cut too — a funnel at n=8 fails the same test. |
-| 7 | **No custom collector, no self-hosting** | Do not build *or run* ingest infrastructure. ~~Cloudflare GraphQL~~ → **Umami Cloud** (see Phase 0 result). |
-| 10 | **"Local" = the read path, not the storage of record** | Events live in Umami Cloud; the local DuckDB is a synced copy. TUI and agent read only the local file. |
-| 11 | **Name: `quinto`** | From *quinto sabor*, the fifth taste. Umami is the fifth taste and Umami is the source — the reference lands for anyone who knows, and reads as a clean word to anyone who doesn't. Short, typeable, no vowel-dropping. |
+| 7 | **No custom collector, no self-hosting, no paying** | Do not build *or run* ingest infrastructure, and don't rent it either. ~~Cloudflare~~ → ~~Umami Cloud~~ → **GoatCounter** (see Phase 0 and the source decisions below). |
 | 8 | **Streams, not aggregates** | Aggregates need volume. Streams don't. "Last 50 visits: what they hit, where from, what they did" is honest at any n, trivially a local table, and directly agent-queryable. |
 | 9 | **Till is not the target user** | No personal site has meaningful traffic. Dogfooding unavailable — acceptable now that this is a portfolio piece. |
+| 10 | **"Local" = the read path, not the storage of record** | Events live in the vendor's cloud; the local DuckDB is a synced copy. TUI and agent read only the local file. |
+| 11 | **Name: `quinto`** | From *quinto sabor*, the fifth taste — umami. Named after the *category* of taste, not the vendor, which is why it survived the source swap unscathed. Short, typeable, no vowel-dropping. |
+| 12 | **Session-grouped stream view** | One row per visit, expandable to the path through the site. The honest small-n form of the customer journey map from the original brief. |
 
 ---
 
@@ -68,9 +69,10 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 
 - Biggest personal site shows **68 unique visitors / 24h** in Cloudflare, but **245 total requests** — 3.6 req/visitor, flat overnight, peaking at 4 AM. **Likely mostly bots.** Real human sessions probably single digits/day. ← *unverified*
 - Low volume is now a **feature constraint, not a blocker** — it forces the stream design, which is the more interesting build anyway.
-- ~~Cloudflare's GraphQL API exposes enough per-request detail~~ — **disproven 2026-07-24.** See Phase 0.
-- ~~Umami's schema gives per-event rows~~ — **verified 2026-07-25** against the API docs. See Phase 0.
-- Umami Cloud's free tier covers this traffic. ← *unverified, pricing page wouldn't scrape; confirm at signup*
+- ~~Cloudflare's GraphQL API exposes enough per-request detail~~ — **disproven 2026-07-24.** Enterprise only.
+- ~~Umami Cloud's free tier is usable~~ — **disproven 2026-07-25.** API access is €20/month. Its data model was fine; the price wasn't.
+- GoatCounter's export carries session IDs and a bot flag — **verified 2026-07-25** against their CSV export docs.
+- GoatCounter stays free for this usage. ← *"currently offered for free for reasonable public usage" is their wording — not a contract. Accepted risk.*
 
 ---
 
@@ -96,55 +98,69 @@ Cloudflare Web Analytics *is* free on all plans, but it's the same story: aggreg
 
 **Consequence:** Decision 7 stands (still not writing a collector), Decision 8 stands (streams are still the right shape), but the **source changes**.
 
-### Source decision — Umami Cloud (hosted). Verified 2026-07-25.
+### Umami Cloud — ❌ RULED OUT 2026-07-25
 
-**No self-hosting** — Till's call, 2026-07-25. Umami Cloud, not a box you maintain.
+**The free plan does not include API access.** An API key requires the paid tier at €20/month — €240/year, for a portfolio project, to read your own data. The API *is* the entire point of the integration, so the free plan is worthless here.
 
-**Verified against the Umami API docs:** `GET /api/websites/:websiteId/sessions/:sessionId/activity` returns per-event rows with exactly the fields the stream view needs —
+Self-hosting Umami would restore the API for nothing, but that call was already made and stands: **no self-hosting.** It was made when hosted was free, which weakens it — except the option below is free *and* hosted, so the trade never has to be made.
 
-```json
-{
-  "createdAt": "2025-10-21T15:00:09Z",
-  "urlPath": "/blog",
-  "urlQuery": "",
-  "referrerDomain": "umami.is",
-  "eventId": "…",
-  "eventType": 1,
-  "eventName": "",
-  "visitId": "…"
-}
-```
+### The pattern behind three failed sources
 
-Paired with `GET /api/websites/:websiteId/sessions` (session list over a time range), that *is* the stream view, natively. Auth is an API key — see Umami docs `cloud/api-key`.
+Cloudflare gates raw request logs behind Enterprise. Umami gates the API behind €20/month. **This is not bad luck — raw per-event export is precisely the feature analytics vendors charge for.** Aggregates are cheap to serve and cheap to give away; individual rows are the product. Any future source has to be evaluated on this axis first, before anything else.
 
-**Why this over PostHog Cloud:**
+The exception is software that isn't monetised through hosting at all.
 
-- Exact-fit API. PostHog's HogQL is more powerful, but you'd be querying a product-analytics warehouse to render a visit list.
-- ~2 KB script, no cookies, no consent banner. PostHog's bundle and consent surface are large for what this needs.
-- Matches the segment's aesthetic — lightweight and privacy-first is the same taste that likes TUIs.
-- Free tier covers this traffic many times over.
+### Source decision — GoatCounter. Verified 2026-07-25.
 
-⚠️ **Known limitation — N+1 fetch.** The sync is: list sessions, then one activity call *per session*. Fine at single-digit sessions/day. It would fall over on a busy site, which matters if anyone else ever points this at real traffic. **Check Umami's `cloud/export-data` for a bulk path before writing the sync loop.**
+Open source, donation-supported, **free hosted service** — *"currently offered for free for reasonable public usage. Running your personal website or small-to-medium business on it is fine."* API keys are created in the account with no paid gate.
 
-⚠️ **Unverified:** exact free-tier limits. Umami's pricing page is JS-rendered and wouldn't scrape. Headroom is enormous at this volume either way, but confirm at signup.
+**`POST /api/v0/export` returns a CSV of individual pageviews**, with exactly the fields this project needs:
+
+| Field | Why it matters here |
+|---|---|
+| `Session` | Session ID — **the session-grouped stream view survives intact** |
+| `FirstVisit` | Marks the session's first hit; gives you session boundaries for free |
+| `Bot` | Explicit bot classification — **you can finally exclude the crawler noise** that made the Cloudflare numbers meaningless |
+| `Path`, `Title`, `Event` | Path doubles as event name |
+| `Browser`, `System`, `Screen size` | Client detail |
+| `Referrer`, `Referrer scheme` | Scheme distinguishes link / generated / campaign / other |
+| `Location` | ISO 3166-2 country code |
+| `Date` | RFC 3339 |
+
+**It's better than Umami would have been, on three counts:**
+
+1. **Bulk export kills the N+1.** One request produces the whole dataset, gzipped. No per-session fan-out.
+2. **`last_hit_id` is a cursor.** `POST /api/v0/export` accepts `start_from_hit_id`, so incremental sync is a native feature — you don't invent a watermark, you store their cursor.
+3. **The `Bot` column** turns the project's biggest data-quality problem into a `WHERE` clause.
+
+Also: ~3.5 KB script, no cookies, no GDPR notice required, and a JS-free pixel fallback.
+
+⚠️ **Setup gotcha that will silently break everything:** the export requires **"Individual pageviews" enabled in site settings — it is off by default.** Without it there is no per-hit data and the whole design fails. Turn it on before anything else.
+
+⚠️ **The export format is versioned** — the version number is the first field of the CSV header, and the docs strongly recommend erroring out if it changes rather than mis-parsing. Note also that GoatCounter's own docs say the **JSON export** is the better option for most people; check it before committing to CSV parsing.
+
+⚠️ **Rate limit: 4 requests/second.** Irrelevant at this volume, relevant if anyone points `quinto` at a large site.
+
+⚠️ **Durability risk, stated plainly:** GoatCounter is one maintainer, donation-supported, and "currently free" is not a contract. That's a genuine risk — mitigated by the fact that the sync boundary makes swapping sources cheap. This is now the third source, and the architecture has absorbed all three without touching the TUI. That's evidence the boundary is in the right place.
 
 ### What this does to Decision 1 ("local")
 
-The record of truth now lives in Umami Cloud; the local DuckDB is a **synced copy**. That's a real shift and worth being precise about: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
+The record of truth lives in GoatCounter; the local DuckDB is a **synced copy**. Worth being precise: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    V["Visitor's browser<br/>(umami script, ~2KB)"] -->|events| U["Umami Cloud<br/>storage of record"]
-    U -->|"REST + API key"| S["sync command<br/>YOU BUILD THIS"]
-    S -->|writes| D[("analytics.duckdb<br/>local file")]
+    V["Visitor's browser<br/>(goatcounter, ~3.5KB)"] -->|pageviews| G["GoatCounter<br/>storage of record"]
+    G -->|"export API + cursor"| S["sync command<br/>YOU BUILD THIS"]
+    S -->|writes| D[("quinto.duckdb<br/>local file")]
     D --> T["TUI<br/>YOU BUILD THIS"]
     D --> A["Agent in the terminal"]
-    F["demo fixture"] -.->|seeds| D
+    F["demo fixture"] -.->|seeds| DD[("quinto-demo.duckdb")]
+    DD --> T
 ```
 
-**The TUI never talks to Umami.** Only `sync` does. That single decision buys instant rendering, offline use, and — because the file is just a file — direct agent access with no API, auth, or rate limit in the way. It's also what makes Decision 2 real rather than a slogan.
+**The TUI never talks to GoatCounter.** Only `sync` does. That single decision buys instant rendering, offline use, and — because the file is just a file — direct agent access with no API, auth, or rate limit in the way. It's also what makes Decision 2 real rather than a slogan, and it's why swapping the source three times has cost nothing downstream.
 
 ### What you actually build
 
@@ -152,34 +168,43 @@ Three things. Everything else is configuration.
 
 | Piece | What it does |
 |---|---|
-| `sync` | Umami REST → DuckDB. Incremental, idempotent on `eventId`, stores a watermark of the last synced timestamp. |
+| `sync` | GoatCounter export → DuckDB. Incremental via their `last_hit_id` cursor, idempotent on hit ID. |
 | TUI | Reads DuckDB with SQL. Stream view first, overview second. |
-| `query` subcommand | Runs raw SQL against the local file and prints it. **This is the agent interface** — it means an agent needs no DuckDB install and no schema hunting. |
+| `query` subcommand | Runs raw SQL against the local file and prints it. **This is the agent interface** — an agent needs no DuckDB install and no schema hunting. |
 
 ### Local schema (draft)
 
 The schema *is* the product — it's what the agent reads. Optimise it for legibility to something that has never seen the codebase.
 
-```sql
-sessions(session_id PK, first_seen, last_seen, country,
-         browser, os, device, referrer)
+GoatCounter's export is flat — one row per hit, with `session` grouping them. That's simpler than a two-table model and better for the agent interface, so keep it flat and derive sessions as a view:
 
-events(event_id PK, session_id FK, visit_id, created_at,
-       url_path, url_query, referrer_domain, event_type, event_name)
+```sql
+hits(hit_id PK, session, path, title, is_event,
+     browser, system, bot, referrer, referrer_scheme,
+     screen_size, country, first_visit, created_at)
+
+sessions  -- a VIEW over hits, grouped by session:
+          -- first_seen, last_seen, page_count, entry_path,
+          -- referrer, country, browser
 ```
 
-Maps 1:1 onto Umami's `/sessions` and `/sessions/:id/activity` responses — no translation layer, no invented vocabulary.
+Maps 1:1 onto GoatCounter's export columns — no translation layer, no invented vocabulary. `bot` stays in the table rather than being filtered at sync time, so the exclusion is visible and reversible rather than a silent data loss.
 
 ### Setup sequence
 
-1. Sign up at Umami Cloud → add a website → get **website ID** + tracking snippet
-2. Snippet into the site's `<head>`. Data starts accumulating immediately.
-3. Generate an **API key** (Umami docs → `cloud/api-key`)
-4. `quinto sync` → populates the local DuckDB
-5. `quinto` → TUI reads the file
-6. Agent: `quinto query "select url_path, count(*) from events group by 1"`
+1. Sign up at GoatCounter → you get `yourcode.goatcounter.com`
+2. **Enable "Individual pageviews" in site settings.** ⚠️ Off by default. Without it there is no per-hit export and nothing below works.
+3. Snippet into the site's `<head>` — data accumulates immediately:
+   ```html
+   <script data-goatcounter="https://yourcode.goatcounter.com/count"
+           async src="//gc.zgo.at/count.js"></script>
+   ```
+4. Generate an **API key** (top menu → your username → API)
+5. `quinto sync` → populates the local DuckDB
+6. `quinto` → TUI reads the file
+7. Agent: `quinto query "select path, count(*) from hits where bot = 0 group by 1"`
 
-Steps 1–3 are an afternoon and require no code. The demo fixture seeds the **same** schema, so the TUI is identical whether it's showing real data or seed data — which is why it can be built before any real traffic arrives.
+Steps 1–4 are an afternoon and require no code. The demo fixture writes the **same** schema to a separate file, so the TUI is identical whether it's showing real data or seed data — which is why it can be built before any real traffic arrives.
 
 ### Phase 1 — Build (the whole project)
 
@@ -189,7 +214,7 @@ The work queue lives in **`.scratch/quinto-v1/issues/`** — six tracer-bullet t
 
 | # | Ticket | Blocked by |
 |---|---|---|
-| 01 | Sync one real visit from Umami to the terminal | — |
+| 01 | Sync one real visit from GoatCounter to the terminal | — |
 | 02 | Demo dataset | 01 |
 | 03 | Stream view TUI | 01, 02 |
 | 04 | `quinto query` — the agent interface | 01 |
@@ -198,9 +223,9 @@ The work queue lives in **`.scratch/quinto-v1/issues/`** — six tracer-bullet t
 
 Two ordering choices that aren't arbitrary: **02 precedes 03** so the TUI is designed against realistic density rather than six real rows, and **04 depends only on 01** so the agent interface can be built in parallel with the TUI.
 
-Ticket 01 additionally carries the repo skeleton, and is gated on a human prerequisite — the Umami API key — not on another ticket.
+Ticket 01 additionally carries the repo skeleton, and is gated on a human prerequisite — a GoatCounter account with individual pageviews enabled and an API key — not on another ticket.
 
-**Testing policy:** test the sync logic, not the rendering. Idempotency and the incremental watermark are claims you can't verify by eye. TUI output gets looked at, not asserted on. Two weekends is not a budget for more, and this is where tests actually pay.
+**Testing policy:** test the sync logic, not the rendering. Idempotency, cursor handling and export-format version checking are claims you can't verify by eye. TUI output gets looked at, not asserted on. Two weekends is not a budget for more, and this is where tests actually pay.
 
 **Demo vs real data:** `quinto demo` writes to a *separate database file* selected by a flag — not a source column in the shared schema. The schema is the agent interface and stays free of internal bookkeeping, and demo data can't clobber real data by construction.
 
@@ -227,9 +252,10 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 
 - [x] ~~Phase 0 check — can Cloudflare give per-request rows?~~ **No. Enterprise only.** Source switched to Umami.
 - [x] ~~Umami self-hosted vs PostHog~~ **Umami Cloud. No self-hosting.** (2026-07-25)
-- [x] ~~Sign up for Umami Cloud~~ **Free plan, 2026-07-25.**
-- [ ] **Paste the tracking snippet into the site's `<head>`** (dashboard → Websites → Edit → Tracking code; add `data-domains` to exclude localhost). Nothing else is blocked by it, but every day without it is a day of history you won't have.
-- [ ] **Generate an Umami API key** — blocks ticket 01.
+- [x] ~~Sign up for Umami Cloud~~ **Abandoned 2026-07-25 — API costs €20/month.**
+- [ ] **Sign up at GoatCounter**, then **enable "Individual pageviews" in site settings** — off by default, and nothing works without it.
+- [ ] **Paste the GoatCounter snippet into the site's `<head>`.** Nothing is blocked by it, but every day without it is a day of history you can't get back.
+- [ ] **Generate a GoatCounter API key** — blocks ticket 01.
 - [x] ~~Smallest useful stream view~~ **Session-grouped, expandable** (2026-07-25). One row per visit, expands to the path through the site. The honest small-n form of the customer journey map from the original brief.
 - [x] ~~Break the build into tickets~~ **Six tracer bullets** in `.scratch/quinto-v1/issues/` (2026-07-25).
 - [x] ~~Name~~ **`quinto`** (2026-07-25). Check availability before publishing: GitHub org/repo, Homebrew formula, and the `quinto` name on any registry you'd publish to.

@@ -1,6 +1,6 @@
 # 02 — Demo dataset
 
-**What to build:** `quinto demo` fills the local database with realistic fake traffic, so the tool has something worth looking at without a live Umami account or real visitors.
+**What to build:** `quinto demo` fills the local database with realistic fake traffic, so the tool has something worth looking at without a live GoatCounter account or real visitors.
 
 This exists for three reasons, and all three matter:
 

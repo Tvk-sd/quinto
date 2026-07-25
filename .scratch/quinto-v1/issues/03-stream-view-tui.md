@@ -32,4 +32,5 @@ Build it against the demo dataset so it's designed for realistic density, then v
 - [ ] The view adapts to terminal width and height, including small windows
 - [ ] It renders correctly with hundreds of sessions and with a nearly empty database
 - [ ] An empty database shows a message explaining how to get data, not a blank screen
+- [ ] Bots are excluded by default and can be toggled back into view
 - [ ] Opening the view performs no network requests
