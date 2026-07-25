@@ -1,3 +1,11 @@
 go.sum
 /quinto
 *.db
+
+# Credentials must never enter this repo. quinto reads its token from the
+# environment or ~/.config/quinto/config — both outside the working tree.
+.env
+.env.*
+*token*
+*secret*
+export *
