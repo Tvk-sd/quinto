@@ -143,6 +143,40 @@ Also: ~3.5 KB script, no cookies, no GDPR notice required, and a JS-free pixel f
 
 ⚠️ **Durability risk, stated plainly:** GoatCounter is one maintainer, donation-supported, and "currently free" is not a contract. That's a genuine risk — mitigated by the fact that the sync boundary makes swapping sources cheap. This is now the third source, and the architecture has absorbed all three without touching the TUI. That's evidence the boundary is in the right place.
 
+### Sources evaluated — why not Plausible, Fathom, PostHog?
+
+The requirement is narrow: **free, hosted, and raw per-visit rows with session identity.** Most analytics products fail the third one regardless of price.
+
+| Source | Free? | Hosted? | Raw per-visit rows? | Verdict |
+|---|---|---|---|---|
+| **GoatCounter** | ✅ donation-supported | ✅ | ✅ export API, `Session` + `Bot` columns | **Chosen** |
+| **PostHog Cloud** | ✅ generous free tier | ✅ | ✅ raw events via query API | Viable. Heavy bundle, consent surface, product-analytics complexity for a visit list. |
+| **Plausible** | ❌ no free tier | ✅ | ❌ **aggregated only** | Ruled out — see below |
+| **Fathom / Simple Analytics** | ❌ | ✅ | ❌ aggregated | Ruled out |
+| **Umami Cloud** | ❌ API is €20/mo | ✅ | ✅ | Ruled out on price |
+| **Cloudflare** | ✅ | ✅ | ❌ Enterprise only | Ruled out |
+
+**Plausible deserves a specific note, because it's the obvious suggestion.** It is a better *product* than GoatCounter — nicer dashboard, more polish, a real company behind it. It is unusable *here*, for two independent reasons:
+
+1. **The Stats API is a Business-plan feature** — not merely paid, but their upper tier.
+2. **Even on that plan it's aggregated.** `/api/v2/query` takes `metrics` and `dimensions` and returns rollups. There is no per-visit row, so the session-grouped stream view — the whole product — cannot be built on it at any price.
+
+Price is not why Plausible loses. **Shape is.** GoatCounter isn't the better analytics product; it's the one whose data-access model fits.
+
+### Why not build the collector ourselves?
+
+Reconsidered 2026-07-25 after three vendor failures — a legitimate prompt to revisit, not a settled question.
+
+**The case for building it** is stronger than it looks: no fourth vendor to fail, "local" becomes literally true, total control of the schema (and the schema is the product), and at ten visits a day the collector is genuinely small. On Cloudflare Workers + D1 it's roughly a hundred lines with no server to maintain — *serverless is not self-hosting in the ops sense*, so the earlier "no self-hosting" call doesn't actually forbid it.
+
+**The case against is distribution, and it decides it.** The definition of done is a stranger installing this in under a minute. With a vendor, anyone who already runs GoatCounter points `quinto` at it and has data immediately. With a bespoke collector, every user must first deploy *your backend* — which kills the install criterion, and with it the awesome-tuis pitch.
+
+Secondary but real: bot classification is hard and GoatCounter gives it free — and bots are this project's single worst data-quality problem. Cookieless session identity (salted, daily-rotating hashes) is fiddly. GDPR posture becomes yours. And the two-weekend timebox does not survive any of it.
+
+**Decision: GoatCounter for v1, and the question stays open rather than closed.** The sync boundary is the one thing that has survived three source swaps untouched, so `quinto collect` can be added later as another source behind the same interface, at near-zero cost to defer.
+
+The honest reason not to build it first: most portfolio projects never reach v2. Spend the two weekends on the thing being judged.
+
 ### What this does to Decision 1 ("local")
 
 The record of truth lives in GoatCounter; the local DuckDB is a **synced copy**. Worth being precise: **"local" describes the read path, not the storage of record.** The TUI and the agent both read the local file, never the API — which is what Decisions 1 and 2 actually depend on. Both survive intact.
