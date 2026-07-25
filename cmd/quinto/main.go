@@ -21,12 +21,14 @@ import (
 	"github.com/Tvk-sd/quinto/internal/demo"
 	"github.com/Tvk-sd/quinto/internal/goatcounter"
 	"github.com/Tvk-sd/quinto/internal/store"
+	"github.com/Tvk-sd/quinto/internal/tui"
 )
 
 const usage = `quinto — web analytics in your terminal
 
 USAGE
-  quinto                        Show recent visits
+  quinto                        Open the stream view
+  quinto list                   Print recent visits as a table
   quinto sync                   Pull new pageviews from GoatCounter
   quinto demo                   Fill a separate database with sample traffic
   quinto query <sql> [--json]   Run SQL against the local database
@@ -104,7 +106,7 @@ func run(args []string) error {
 	}
 
 	if len(positional) == 0 {
-		return runRecent(path, isDemo)
+		return runTUI(path, isDemo)
 	}
 
 	switch positional[0] {
@@ -112,6 +114,8 @@ func run(args []string) error {
 		return runSync(path)
 	case "demo":
 		return runDemo(path)
+	case "list":
+		return runList(path, isDemo)
 	case "query":
 		if len(positional) < 2 {
 			return fmt.Errorf("query needs SQL: quinto query \"select * from sessions limit 5\"")
@@ -278,10 +282,21 @@ func runDemo(path string) error {
 	return nil
 }
 
-// runRecent lists the most recent visits, humans only. It always states how
-// old the data is: with an hourly sync ceiling, presenting stale numbers as
-// current would be the interface lying.
-func runRecent(path string, isDemo bool) error {
+// runTUI opens the stream view — quinto's main screen.
+func runTUI(path string, isDemo bool) error {
+	db, err := store.OpenReadOnly(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	return tui.Run(db, isDemo)
+}
+
+// runList prints recent visits as a plain table. The TUI is the main
+// interface, but a pipeable list is what you want inside a script — or when
+// the terminal isn't interactive.
+func runList(path string, isDemo bool) error {
 	db, err := store.OpenReadOnly(path)
 	if err != nil {
 		return err
