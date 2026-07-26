@@ -13,9 +13,7 @@ minutes, and left from `/work`. That is a real fact about a real person. It is
 also the entire customer journey, at the only sample size you actually have.
 
 It syncs your pageviews into a SQLite file on your machine and reads them from
-there. The terminal UI and the SQL interface look at the same file — so the
-agent already running in your terminal can answer questions about your traffic
-without an integration, an API key, or your permission slip.
+there. The terminal UI and the SQL interface read the same file, so anything that can open a file can read your traffic.
 
 ![quinto](docs/demo.gif)
 
