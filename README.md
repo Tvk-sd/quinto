@@ -30,48 +30,60 @@ that can open a file can read your traffic.
 It opens on the overview: what happened, before who came.
 
 ```
-  118 visitors   198 pageviews   78 events   35/118 single-page   43 bots hidden
+quinto · DEMO DATA · synced moments ago · 286 visits · 647 pageviews · 134 bot visits hidden
+
+  66 visitors   109 pageviews   27 events   36/66 single-page   41 bots hidden
 
   pageviews per day · 7 days
-  ▆▆▄▆▃█▃▂
-  peak 45/day · 8 of 8 days had traffic
+  ▅▃█▄█▇▂▂
+  peak 26/day · 8 of 8 days had traffic
 
-  top pages                     referrers                     countries
-  /                          63 direct                     34 DE               24
-  /work                      31 Google                     16 US               15
-  /writing                   25 Hacker News                 9 GB                7
-  tab stream · r range · b bots · ? help · q quit
+  PAGE                        N REFERRER                    N COUNTRY                     N
+  ───────────────────────────── ───────────────────────────── ─────────────────────────────
+  /                          35 direct                     31 DE                         22
+  /work                      18 Google                     16 US                         12
+  /writing                   15 LinkedIn                    7 GB                          8
+  /process                    9 GitHub                      5 NL                          7
+
+  tab stream · / filter · r range · b bots · ? help · q quit
 ```
 
 `tab` switches to the stream — one row per visit, expandable to the path that
 visitor took through your site.
 
 ```
-quinto · synced 4m ago · 309 visits · 707 pageviews · 111 bot visits hidden
-  ▶ Thu 14:04  DE · Firefox · reddit.com                    1 page · 1 ev · 13s
-  ▼ Thu 14:03  CH · Safari · Hacker News                 7 pages · 2 ev · 8m28s
-      14:03:20  /
-      14:03:32  Nav · Process
-      14:05:18  /challenges
-      14:05:34  /
-      14:08:02  /work
-      14:09:50  /process
-      14:09:56  Nav · Challenges
-      14:11:21  /challenges
-      14:11:48  /process
-24/309  ↑↓ move · enter expand · / filter · tab overview · b bots · ? help · q quit
+quinto · DEMO DATA · synced moments ago · 286 visits · 647 pageviews · 134 bot visits hidden
+    TIME         COUNTRY BROWSER  SOURCE                               PAGES EVENTS    DUR
+    ──────────────────────────────────────────────────────────────────────────────────────
+  ▶ Tue 16:34    DE      Chrome   GitHub                                   2      1  2m55s
+  ▶ Tue 15:08    GB      Chrome   direct                                   1      0      —
+  ▶ Tue 14:16    DE      Chrome   direct                                   2      1  3m10s
+  ▼ Tue 12:56    NL      Chrome   direct                                   5      1  8m23s
+      12:56:51  /challenges
+      12:56:56  Nav · Process
+      12:59:09  /work
+      13:01:54  /
+      13:03:25  /writing
+      13:05:14  /writing/discovery-notes
+
+  ▶ Tue 11:02    ES      Safari   direct                                   1      0      —
+56/286  ↑↓ move · enter expand · / filter · tab overview · b bots · ? help · q quit
 ```
 
 `/` filters. It matches the landing page, referrer, country and browser — and
 every page **inside** a visit, so searching for a page finds the people who
-reached it second or third, not only those who arrived on it. Those rows say
-which page matched, because nothing else on them would show it.
+reached it second or third, not only those who arrived on it.
 
 ```
-  ▶ Fri 14:05  JP · Edge · Google         ← /contact      2 pages · 38s
-  ▶ Fri 11:34  IN · Chrome · Google       ← /contact      4 pages · 1 ev · 3m48s
-  ▶ Fri 08:09  DE · Safari · newsletter   ← /contact      2 pages · 1m13s
-/contact  32 matching  ↑↓ move · enter expand · esc clear filter · ? help · q quit
+quinto · DEMO DATA · synced moments ago · 286 visits · 647 pageviews · 134 bot visits hidden
+    TIME         COUNTRY BROWSER  SOURCE                               PAGES EVENTS    DUR
+    ──────────────────────────────────────────────────────────────────────────────────────
+  ▶ Fri 16:05    JP      Edge     Google                                   2      0    38s
+  ▶ Fri 13:34    IN      Chrome   Google                                   4      1  3m48s
+  ▶ Fri 10:09    DE      Safari   newsletter                               2      0  1m13s
+  ▶ Wed 02:00    DE      Chrome   direct                                   2      1  1m23s
+  ▶ 19 Jul 19:15 NL      Chrome   GitHub                                   5      3  6m09s
+/contact▏  32 matching · enter keep · esc clear · typing, so letters are text
 ```
 
 In the sample data nobody lands on `/contact` — 32 visits reach it anyway.
