@@ -99,7 +99,49 @@ arm64.
 go install github.com/Tvk-sd/quinto/cmd/quinto@latest
 ```
 
-Or grab a binary from [Releases](../../releases) and put it on your `PATH`.
+That puts `quinto` in `$(go env GOPATH)/bin`, usually `~/go/bin`. If typing
+`quinto` afterwards gives you *command not found*, that directory isn't on your
+`PATH`:
+
+```sh
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc && exec zsh
+```
+
+Or take a binary from [Releases](../../releases) and drop it anywhere on your
+`PATH`.
+
+## The two commands
+
+`quinto` is two things that stay deliberately separate:
+
+```sh
+quinto sync      # fetch new pageviews — the only command that uses the network
+quinto           # open the interface — reads the local file, never the network
+```
+
+**`quinto` downloads nothing.** It opens whatever `sync` last fetched. That
+split is the whole design, and it buys three things:
+
+- **It starts instantly.** No spinner, no waiting on someone's API.
+- **It works offline** — on a plane, or while GoatCounter is down.
+- **Your token is only ever used by `sync`.** Nothing that reads your data
+  needs credentials.
+
+The cost is that the numbers are as fresh as your last sync, which is why every
+screen states its age (`synced 4m ago`). GoatCounter allows roughly one export
+an hour, so syncing is something you do occasionally — automatic syncing on
+launch would just walk into the rate limit.
+
+`sync` fetches only what is new; it remembers where it left off.
+
+Day to day it's:
+
+```sh
+quinto           # look, any time
+quinto sync      # when you want fresher numbers
+```
+
+There is no daemon and no background process.
 
 ## Try it in thirty seconds
 
@@ -189,16 +231,16 @@ export QUINTO_GOATCOUNTER_TOKEN=...
 **5. Sync and look.**
 
 ```sh
-quinto sync
-quinto
+quinto sync      # downloads your pageviews
+quinto           # opens them
 ```
 
-> GoatCounter allows roughly **one export per hour**. `quinto sync` is a
-> deliberate, occasional action rather than something to run in a loop. When
-> the limit is hit it tells you when the next sync is possible and exits
-> cleanly — it is a normal state, not an error. Every screen states how old its
-> data is, because at that cadence showing stale numbers as current would be
-> the interface lying to you.
+> The first sync fetches everything GoatCounter has stored since you turned on
+> individual pageviews. If the export comes back empty, that setting is almost
+> certainly the reason — see step 2.
+>
+> When the hourly limit is hit, `quinto sync` tells you when the next one is
+> possible and exits cleanly. That is a normal state, not an error.
 
 ## Asking it things the screens don't answer
 
@@ -256,16 +298,18 @@ Two things worth putting in your agent's instructions, both also in
   observation, because you cannot see when someone left. `AVG()` skips those,
   which is the point.
 
-## How it works
+## The whole path, end to end
 
 ```
-your site ──▶ GoatCounter ──▶ quinto sync ──▶ quinto.db ──▶ TUI
+your site ──▶ GoatCounter ──▶ quinto sync ──▶ quinto.db ──▶ the interface
   (3.5 KB)     (storage)        (the only        (SQLite)  ├─▶ quinto query
                                 network step)               └─▶ your agent
 ```
 
-The interface never talks to the network. That is what makes it instant,
-usable offline, and readable by anything that can open a file.
+Three things read that file and none of them can reach the network. Everything
+to the right of `quinto.db` is instant, works offline, and needs no
+credentials — which is also why an agent can be handed the last branch without
+being handed your token.
 
 ## Design decisions
 
