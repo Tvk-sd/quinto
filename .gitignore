@@ -13,5 +13,6 @@ export *
 
 # Working notes stay local — they are personal process, not part of the tool.
 PLAN.md
+learnings.md
 .scratch/
 docs/agents/
