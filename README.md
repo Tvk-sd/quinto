@@ -1,6 +1,6 @@
 # quinto
 
-**Web analytics in your terminal — and in your agent's.**
+**Web analytics in your terminal.**
 
 Analytics tools are built for sites with traffic. If yours gets fifty visits a
 week, a dashboard of percentages and trend lines tells you nothing true: the
