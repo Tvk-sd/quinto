@@ -74,13 +74,25 @@ func run(args []string) error {
 
 	// Split the subcommand from its flags so `quinto query "..." --json`
 	// works in the order people actually type it.
+	//
+	// Flags that take a value must carry it across the split. Sorting purely
+	// by the leading dash left `--db` behind while its path went into the
+	// positional list, so `--db /some/file` failed with "flag needs an
+	// argument" — a documented flag that never worked in its documented form.
+	takesValue := map[string]bool{"-db": true, "--db": true}
+
 	var positional []string
 	var flags []string
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			flags = append(flags, a)
-		} else {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case !strings.HasPrefix(a, "-"):
 			positional = append(positional, a)
+		case takesValue[a] && i+1 < len(args):
+			flags = append(flags, a, args[i+1])
+			i++
+		default:
+			flags = append(flags, a)
 		}
 	}
 	if err := fs.Parse(flags); err != nil {
