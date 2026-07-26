@@ -10,3 +10,8 @@ go.sum
 *token*
 *secret*
 export *
+
+# Working notes stay local — they are personal process, not part of the tool.
+PLAN.md
+.scratch/
+docs/agents/
