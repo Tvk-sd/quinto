@@ -102,6 +102,9 @@ func New(db *store.DB, isDemo bool) (*Model, error) {
 		expanded: map[string]bool{},
 		width:    80,
 		height:   24,
+		// Land on the overview first: a raw visit list has no context for a
+		// reader who just opened the app. tab still reaches the stream.
+		screen: screenOverview,
 	}
 	if err := m.reload(); err != nil {
 		return nil, err
