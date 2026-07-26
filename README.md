@@ -189,47 +189,57 @@ quinto
 > data is, because at that cadence showing stale numbers as current would be
 > the interface lying to you.
 
-## For agents
+## Asking it things the screens don't answer
 
-A dashboard can only answer the questions someone built a screen for. Ask it
-*"did the people who read the pricing page come from the newsletter or from
-Google?"* and you are out of luck unless that view exists.
+Any dashboard can only answer the questions someone built a screen for. *"Do
+the people who reach my contact page come from the newsletter or from
+Google?"* — if that view doesn't exist, you're stuck exporting a CSV.
 
-**quinto's data is a file, so there is no screen to be missing.** Ask the agent
-already sitting in your terminal, in whatever words you'd use, and it can go
-find out:
-
-> *"Which pages do people reach after landing on the blog, and how long do
-> those visits run?"*
+quinto's screens have the same limit. The difference is what's underneath:
+**the data is a SQLite file, and there's a subcommand that queries it.** So
+when the screen runs out, you don't leave the terminal.
 
 ```sh
-quinto query "select h2.path, count(*) visits, avg(s.duration_seconds) secs
-              from hits h1
-              join hits h2 on h2.session = h1.session and h2.path != h1.path
-              join sessions s on s.session = h1.session
-              where h1.first_visit = 1 and h1.path like '/writing%' and h1.bot = 0
-              group by 1 order by visits desc" --json
+quinto schema      # the real DDL — two tables, nothing hidden
+quinto query "select coalesce(nullif(s.referrer,''),'direct') as referrer, count(*) n
+              from sessions s
+              join hits h on h.session = s.session and h.path = '/contact'
+              where s.bot = 0 group by 1 order by n desc"
 ```
 
-Nobody built that report. The agent wrote it, because it could read the schema
-and the data is just SQL.
+```
+referrer     n
+direct       15
+Google       5
+Hacker News  4
+GitHub       3
+LinkedIn     2
+```
 
-**What makes that work rather than being a nice idea:**
+That's you, at the prompt, with no agent involved. It matters on its own.
 
-- **No integration to build.** No MCP server, no API wrapper, no plugin. If the
-  agent can run a command, it's done.
-- **No credentials to hand over.** Your GoatCounter token stays in `sync`. The
-  query path never touches the network, so an agent reading your analytics is
-  never an agent holding your keys.
-- **No rate limit between the question and the answer.** GoatCounter allows one
-  export an hour; your agent can run four hundred queries a minute against the
-  local file.
-- **`quinto schema` prints the real DDL**, so an agent that has never seen this
-  project writes a correct query on the first try instead of guessing column
-  names.
-- **Read-only twice over** — the file opens `mode=ro` *and* sets `query_only`.
-  An agent exploring your data cannot damage it, including by accident.
-- **No database client needed.** The binary is the client.
+### What changes when an agent is there
+
+The same subcommand is the cheapest possible interface for one. **A question
+costs a single shell command** — that's it. No MCP server to run, no API client
+to write, no auth handshake, no pagination. If your agent can execute `quinto
+query`, the integration is already finished.
+
+That cheapness is the point, and it compounds:
+
+- **`quinto schema` is one call and then it knows everything.** No guessing at
+  column names, no burning turns on trial and error before the first useful
+  answer.
+- **Every follow-up is another cheap call.** Ask three questions to narrow
+  something down and it costs three commands against a local file — not three
+  round trips through someone's rate-limited API.
+- **Nothing is behind credentials.** Your GoatCounter token lives in `sync`
+  alone. The query path never touches the network, so an agent reading your
+  analytics is never an agent holding your keys.
+- **It cannot break anything.** The file opens `mode=ro` *and* sets
+  `query_only` — read-only twice over. You can let it explore freely.
+- **`--json` when a machine is reading**, a table when you are.
+- **No database client needed** on either side. The binary is the client.
 
 Two things worth putting in your agent's instructions, both also in
 `quinto help`:
