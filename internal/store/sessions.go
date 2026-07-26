@@ -26,6 +26,12 @@ type Session struct {
 	Browser   sql.NullString
 	System    sql.NullString
 	Duration  sql.NullInt64
+
+	// Match is the page inside this visit that a filter matched on, empty when
+	// the match is already visible on the row or nothing is filtered. It
+	// describes the query rather than the visit, which is why it is a plain
+	// string and not part of the schema an agent reads.
+	Match string
 }
 
 // SessionHit is one step within a visit.
@@ -36,19 +42,12 @@ type SessionHit struct {
 	CreatedAt time.Time
 }
 
-// RecentSessions returns the most recent visits, newest first.
-func (db *DB) RecentSessions(ctx context.Context, limit int, includeBots bool) ([]Session, error) {
-	where := "WHERE bot = 0"
-	if includeBots {
-		where = ""
-	}
+// RecentSessions returns the most recent visits matching the filter, newest
+// first. A zero SessionFilter returns recent visits with bots excluded.
+func (db *DB) RecentSessions(ctx context.Context, limit int, f SessionFilter) ([]Session, error) {
+	query, args := f.SQL(limit)
 
-	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
-		SELECT session, first_seen, last_seen, page_count, event_count, bot,
-		       entry_path, referrer, country, browser, system, duration_seconds
-		FROM sessions %s
-		ORDER BY first_seen DESC
-		LIMIT ?`, where), limit)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("loading sessions: %w", err)
 	}
@@ -62,7 +61,7 @@ func (db *DB) RecentSessions(ctx context.Context, limit int, includeBots bool) (
 		)
 		if err := rows.Scan(&s.ID, &firstSeen, &lastSeen, &s.PageCount, &s.EventCount,
 			&s.Bot, &s.EntryPath, &s.Referrer, &s.Country, &s.Browser, &s.System,
-			&s.Duration); err != nil {
+			&s.Duration, &s.Match); err != nil {
 			return nil, fmt.Errorf("scanning session: %w", err)
 		}
 		s.FirstSeen, _ = time.Parse(time.RFC3339, firstSeen)
