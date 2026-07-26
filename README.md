@@ -123,7 +123,7 @@ axis first:
 | | free | hosted | per-visit rows |
 |---|---|---|---|
 | **GoatCounter** | ✅ | ✅ | ✅ export API with session IDs and a bot flag |
-| PostHog Cloud | ✅ | ✅ | ✅ but a heavy bundle and a consent surface for a visit list |
+| PostHog Cloud | ✅ | ✅ | ✅ but a heavy script and a consent banner, to render a list of visits |
 | **Plausible** | ❌ no free tier | ✅ | ❌ Stats API is a *Business-plan* feature, and returns aggregates even then |
 | Fathom, Simple Analytics | ❌ | ✅ | ❌ aggregated |
 | **Umami Cloud** | ❌ API is €20/mo | ✅ | ✅ |
@@ -216,7 +216,6 @@ GitHub       3
 LinkedIn     2
 ```
 
-
 The same subcommand works for an agent as well. **A question costs a single
 shell command** and that's it. No MCP server to run, no API client, no auth
 handshake, no pagination. If your agent can execute `quinto query`, the
@@ -250,7 +249,7 @@ Two things worth putting in your agent's instructions, both also in
 
 ```
 your site ──▶ GoatCounter ──▶ quinto sync ──▶ quinto.db ──▶ TUI
-  (3.5 KB)     (storage)        (the only        (SQLite)  └─▶ quinto query
+  (3.5 KB)     (storage)        (the only        (SQLite)  ├─▶ quinto query
                                 network step)               └─▶ your agent
 ```
 
@@ -287,8 +286,8 @@ someone threw away for you.
 
 ## Limitations
 
-- **Bot classification is GoatCounter's**, not ours. It is good, but it is
-  theirs, and quinto stores the verdict rather than second-guessing it.
+- **Bot classification is GoatCounter's**, not ours. It is good, and it is not
+  ours to improve — quinto stores their verdict rather than second-guessing it.
 - **One sync per hour**, imposed upstream.
 - **Sessions rotate daily by design.** GoatCounter's session identifier is a
   salted hash that changes every day so visitors cannot be tracked across
