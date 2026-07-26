@@ -2,9 +2,18 @@
 
 *From "quinto sabor" — the fifth taste. Umami is the fifth taste, and Umami is the data source.*
 
-**Status:** v1 built. All six tickets closed. Two release steps left, both Till's.
-**Success criterion:** Listed on [awesome-tuis → Dashboards](https://github.com/rothgar/awesome-tuis#dashboards)
-**Last updated:** 2026-07-25
+**Status:** v1 shipped.
+**Last updated:** 2026-07-26
+
+> **What this document is.** The working decision log for quinto, kept as the
+> project was built rather than written up afterwards. It records what was
+> decided, what was rejected, and — more usefully — the several things that
+> turned out to be wrong. Three data sources were evaluated and discarded before
+> the fourth worked; the published API docs for the one we use were wrong in four
+> places; two data-model errors only surfaced once realistic sample data existed.
+>
+> It is kept public because that trail is more informative than the code. If you
+> only want to use quinto, the [README](README.md) is the whole story.
 
 ---
 
@@ -12,7 +21,9 @@
 
 A terminal-native web analytics dashboard for developers who already run agents in their terminal.
 
-**It is a portfolio project, not a product.** Decided 2026-07-24 after establishing that no dogfooding data exists and the target segment is unvalidated. This is an honest reclassification, not a downgrade — it removes weeks of validation work that would not have changed the build.
+**Built as a craft project rather than a venture**, decided deliberately on 2026-07-24. The alternative was to spend several weeks validating demand first — interviews, segment research, the usual apparatus. That work would have delayed the build without changing a single decision in it, because the design constraints come from the data, not the market: at low traffic, aggregates are noise and only individual visits are honest.
+
+So the scope was set by what makes a good tool for that constraint, and the validation was skipped on purpose. Naming the trade-off is the point; an unstated one tends to get discovered later as a flaw.
 
 Jobs (Till's own framing):
 
@@ -58,7 +69,7 @@ Output of a ten-round `/grill-me` session. Settled unless new evidence appears.
 | 6 | **Journey maps are cut** | Need ~500+ sessions/week to be anything but noise. Reframed to funnels, then cut too — a funnel at n=8 fails the same test. |
 | 7 | **No custom collector, no self-hosting, no paying** | Do not build *or run* ingest infrastructure, and don't rent it either. ~~Cloudflare~~ → ~~Umami Cloud~~ → **GoatCounter** (see Phase 0 and the source decisions below). |
 | 8 | **Streams, not aggregates** | Aggregates need volume. Streams don't. "Last 50 visits: what they hit, where from, what they did" is honest at any n, trivially a local table, and directly agent-queryable. |
-| 9 | **Till is not the target user** | No personal site has meaningful traffic. Dogfooding unavailable — acceptable now that this is a portfolio piece. |
+| 9 | **Design for a traffic level the author doesn't have** | None of the author's sites produce enough traffic to stress-test the tool, so the design is driven by the low-volume case on purpose — and a realistic seeded dataset (ticket 02) does the work dogfooding would otherwise do. That ordering caught two data-model errors before the UI was written. |
 | 10 | **"Local" = the read path, not the storage of record** | Events live in the vendor's cloud; the local SQLite file is a synced copy. TUI and agent read only the local file. |
 | 11 | **Name: `quinto`** | From *quinto sabor*, the fifth taste — umami. Named after the *category* of taste, not the vendor, which is why it survived the source swap unscathed. Short, typeable, no vowel-dropping. |
 | 12 | **Session-grouped stream view** | One row per visit, expandable to the path through the site. The honest small-n form of the customer journey map from the original brief. |
