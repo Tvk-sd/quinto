@@ -40,8 +40,24 @@ func demoModel(t *testing.T) *Model {
 	return m
 }
 
+// streamModel navigates to the stream. The app opens on the overview, so a
+// test about the visit list has to say so rather than assume it.
+func streamModel(t *testing.T) *Model {
+	t.Helper()
+	updated, _ := demoModel(t).Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	return updated.(*Model)
+}
+
+// The first screen is a decision, not an accident: a raw visit list gives a
+// first-time reader no context.
+func TestOpensOnTheOverview(t *testing.T) {
+	if s := demoModel(t).screen; s != screenOverview {
+		t.Errorf("screen = %v, want the overview", s)
+	}
+}
+
 func TestRendersHeaderAndVisits(t *testing.T) {
-	m := demoModel(t)
+	m := streamModel(t)
 	out := m.render()
 
 	for _, want := range []string{"quinto", "DEMO DATA", "visits", "expand", "quit"} {
@@ -86,7 +102,7 @@ func TestBotsHiddenByDefaultButDisclosed(t *testing.T) {
 }
 
 func TestExpandingShowsTheJourney(t *testing.T) {
-	m := demoModel(t)
+	m := streamModel(t)
 
 	// Find a visit with several pages — that's the case the view exists for.
 	for i, s := range m.sessions {
@@ -132,7 +148,7 @@ func TestExpandingShowsTheJourney(t *testing.T) {
 // upgrade had to rewrite: v1 reported the key as " ", v2 reports it as "space".
 // The help text promises it, so it gets a test.
 func TestSpaceExpandsLikeEnter(t *testing.T) {
-	m := demoModel(t)
+	m := streamModel(t)
 
 	before, _, _ := m.buildLines()
 
@@ -151,7 +167,7 @@ func TestSpaceExpandsLikeEnter(t *testing.T) {
 // Following only the cursor line leaves the steps below the fold — which is
 // precisely what the reader just asked to see.
 func TestExpandingScrollsTheJourneyIntoView(t *testing.T) {
-	m := demoModel(t)
+	m := streamModel(t)
 	m.height = 20
 
 	// Pick a deep visit well past the first screenful.
@@ -188,7 +204,7 @@ func TestExpandingScrollsTheJourneyIntoView(t *testing.T) {
 }
 
 func TestNavigationStaysInBounds(t *testing.T) {
-	m := demoModel(t)
+	m := streamModel(t)
 
 	for i := 0; i < len(m.sessions)+20; i++ {
 		updated, _ := m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
@@ -211,7 +227,7 @@ func TestNavigationStaysInBounds(t *testing.T) {
 // the layout, and narrow terminals are exactly where a TUI gets judged.
 func TestLinesFitNarrowTerminals(t *testing.T) {
 	for _, width := range []int{40, 60, 80, 120} {
-		m := demoModel(t)
+		m := streamModel(t)
 		m.width = width
 		m.cursor = 0
 		updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -258,6 +274,9 @@ func TestEmptyDatabaseExplainsWhatToDo(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	m.width, m.height = 80, 24
+	// The advice to run sync lives on the stream's empty state.
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = updated.(*Model)
 
 	out := m.render()
 	if !strings.Contains(out, "sync") || !strings.Contains(out, "demo") {

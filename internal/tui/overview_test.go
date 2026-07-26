@@ -12,9 +12,8 @@ import (
 
 func overviewModel(t *testing.T) *Model {
 	t.Helper()
-	m := demoModel(t)
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	return updated.(*Model)
+	// The app already opens here; no navigation needed.
+	return demoModel(t)
 }
 
 func TestOverviewShowsHeadlineNumbers(t *testing.T) {
