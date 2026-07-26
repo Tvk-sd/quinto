@@ -193,10 +193,10 @@ quinto
 
 Any dashboard can only answer the questions someone built a screen for. *"Do
 the people who reach my contact page come from the newsletter or from
-Google?"* — if that view doesn't exist, you're stuck exporting a CSV.
+Google?"*, if that view doesn't exist, you're stuck exporting a CSV.
 
-quinto's screens have the same limit. The difference is what's underneath:
-**the data is a SQLite file, and there's a subcommand that queries it.** So
+quinto's screens have the same limit. But underneath:
+** is the data a SQLite file, and there's a subcommand that queries it.** So
 when the screen runs out, you don't leave the terminal.
 
 ```sh
@@ -216,16 +216,12 @@ GitHub       3
 LinkedIn     2
 ```
 
-That's you, at the prompt, with no agent involved. It matters on its own.
 
-### What changes when an agent is there
-
-The same subcommand is the cheapest possible interface for one. **A question
-costs a single shell command** — that's it. No MCP server to run, no API client
-to write, no auth handshake, no pagination. If your agent can execute `quinto
+The same subcommand is the cheapest possible interface if an agent aswell. **A question
+costs a single shell command** and that's it. No MCP server to run, no API client, no auth handshake, no pagination. If your agent can execute `quinto
 query`, the integration is already finished.
 
-That cheapness is the point, and it compounds:
+That cheapness is the point:
 
 - **`quinto schema` is one call and then it knows everything.** No guessing at
   column names, no burning turns on trial and error before the first useful
