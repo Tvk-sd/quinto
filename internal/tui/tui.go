@@ -29,7 +29,11 @@ func adaptive(light, dark string) compat.AdaptiveColor {
 }
 
 var (
-	dim = lipgloss.NewStyle().Foreground(adaptive("245", "241"))
+	// dim carries most of the app's actual information (stats, hints,
+	// referrer/country detail), so it needs to clear WCAG AA's 4.5:1 body-text
+	// contrast against common terminal backgrounds, not just look "subtle."
+	// 245/241 measured 2.3-3.5:1; 241/247 clears ~4.5:1+ in both modes.
+	dim = lipgloss.NewStyle().Foreground(adaptive("241", "247"))
 
 	header = lipgloss.NewStyle().
 		Foreground(adaptive("236", "252")).
@@ -49,8 +53,12 @@ var (
 	eventStyle = lipgloss.NewStyle().
 			Foreground(adaptive("97", "141"))
 
+	// botStyle stays a step dimmer than dim (bot rows should recede) but
+	// 244/240 measured 2.0-4.0:1 — too low to read at all in several dark
+	// themes. 243/245 keeps the recede-relative-to-dim relationship while
+	// staying legible (~4.1:1+).
 	botStyle = lipgloss.NewStyle().
-			Foreground(adaptive("244", "240")).
+			Foreground(adaptive("243", "245")).
 			Italic(true)
 
 	errStyle = lipgloss.NewStyle().
