@@ -7,20 +7,35 @@ terminal UI and the SQL interface look at the same file, so the agent already
 running in your terminal can interrogate your traffic directly — no API, no
 credentials, no rate limit in the way.
 
+![quinto](docs/demo.gif)
+
 <!--
-  DEMO GIF goes here. Generate it with:
-      brew install vhs
-      make demo-gif
-  then commit docs/demo.gif and replace this comment with:
-      ![quinto](docs/demo.gif)
-  Left as a comment rather than a link so the README never shows a broken
-  image — the worst possible first impression for a tool judged on its looks.
+  Re-record with `make demo-gif` (needs: brew install vhs) whenever the UI
+  changes — the tape walks a fixed path through the app, so a change to which
+  screen opens first, or to what the footer says, silently makes this GIF a
+  picture of software that no longer exists.
 -->
 
 ## What it looks like
 
-One row per visit. Expand it to see the path that visitor took through your
-site.
+It opens on the overview: what happened, before who came.
+
+```
+  118 visitors   198 pageviews   78 events   35/118 single-page   43 bots hidden
+
+  pageviews per day · 7 days
+  ▆▆▄▆▃█▃▂
+  peak 45/day · 8 of 8 days had traffic
+
+  top pages                     referrers                     countries
+  /                          63 direct                     34 DE               24
+  /work                      31 Google                     16 US               15
+  /writing                   25 Hacker News                 9 GB                7
+  tab stream · r range · b bots · ? help · q quit
+```
+
+`tab` switches to the stream — one row per visit, expandable to the path that
+visitor took through your site.
 
 ```
 quinto · synced 4m ago · 309 visits · 707 pageviews · 111 bot visits hidden
@@ -35,23 +50,24 @@ quinto · synced 4m ago · 309 visits · 707 pageviews · 111 bot visits hidden
       14:09:56  Nav · Challenges
       14:11:21  /challenges
       14:11:48  /process
-24/309  ↑↓ move · enter expand · tab overview · b bots · ? help · q quit
+24/309  ↑↓ move · enter expand · / filter · tab overview · b bots · ? help · q quit
 ```
 
-`tab` switches to the overview.
+`/` filters. It matches the landing page, referrer, country and browser — and
+every page **inside** a visit, so searching for a page finds the people who
+reached it second or third, not only those who arrived on it. Those rows say
+which page matched, because nothing else on them would show it.
 
 ```
-  73 visitors   130 pageviews   40 events   42/73 single-page   24 bots hidden
-
-  pageviews per day · 7 days
-  ▆▆▄▆▃█▃▂
-  peak 33/day · 8 of 8 days had traffic
-
-  top pages                     referrers                     countries
-  /                          53 direct                     39 DE               23
-  /work                      19 Google                     11 US               11
-  /writing                   17 Hacker News                10 GB               10
+  ▶ Mon 16:09  GB · Safari · direct     ← /contact       3 pages · 2 ev · 52h19m
+  ▶ Mon 15:30  DE · Firefox · direct    ← /contact       3 pages · 1 ev · 30h28m
+  ▶ Mon 12:06  DE · Safari · Hacker News ← /contact      3 pages · 1 ev · 3m48s
+/contact  48 matching  ↑↓ move · enter expand · esc clear filter · ? help · q quit
 ```
+
+In the sample data nobody lands on `/contact` — 48 visits reach it anyway.
+The filter runs as a single SQL statement, so it is also a query you can hand
+to an agent.
 
 ## Install
 
