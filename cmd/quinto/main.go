@@ -27,7 +27,7 @@ import (
 const usage = `quinto — web analytics in your terminal
 
 USAGE
-  quinto                        Open the stream view
+  quinto                        Open the dashboard
   quinto list                   Print recent visits as a table
   quinto sync                   Pull new pageviews from GoatCounter
   quinto demo                   Fill a separate database with sample traffic
@@ -282,7 +282,7 @@ func runDemo(path string) error {
 	return nil
 }
 
-// runTUI opens the stream view — quinto's main screen.
+// runTUI opens the dashboard: the overview first, tab away to the stream.
 func runTUI(path string, isDemo bool) error {
 	db, err := store.OpenReadOnly(path)
 	if err != nil {
