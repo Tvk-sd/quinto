@@ -317,7 +317,7 @@ Ticket 01 additionally carries the repo skeleton, and is gated on a human prereq
 
 ### Cut from the plan
 
-Netnography, interviews, kill criteria, segment validation. All correct for a product; all waste for a portfolio piece. Deleted on purpose — if this ever turns back into a product, restore them from git history.
+Netnography, interviews, kill criteria, segment validation. Right and necessary if the goal were a business; here they would have delayed the build without changing it, because the design follows from the data's shape rather than from what a market says it wants. Cut deliberately — restorable from git history if the goal ever changes.
 
 ---
 
@@ -330,16 +330,23 @@ Netnography, interviews, kill criteria, segment validation. All correct for a pr
 | "For people in VS Code" positioning | Retrofitted rationale. |
 | mctimey.app as dogfood target | No volume. |
 | Scroll depth, journey maps, funnels | Wrong audience for a terminal; unbuildable at this volume. |
-| Validating the segment before building | Right for a product, waste for a portfolio project. |
+| Validating the segment before building | Would have delayed the build without changing it — the constraints come from the data, not the market. |
 
 ---
 
 ## Offen — bei Till
 
-Everything that blocked the build is resolved and recorded in the ticket files.
-Two release steps remain, both deliberately not automated.
+All six tickets are closed and v1 is published: repository live, `v0.1.0`
+released with static binaries for macOS and Linux on both architectures, demo
+GIF recorded, and the awesome-tuis listing submitted as
+[PR #786](https://github.com/rothgar/awesome-tuis/pull/786).
 
-- [ ] **Record the demo GIF.** `brew install vhs && make demo-gif`, commit
+Kept below for the record — what these items were, and why two of them were
+never automated.
+
+- [x] ~~**Record the demo GIF.**~~ Done — and it took two attempts: the first tape invoked `quinto` rather than `./quinto`, so every keystroke went to the shell and the GIF recorded an empty prompt.
+
+  Original note: `brew install vhs && make demo-gif`, commit
       `docs/demo.gif`, then replace the placeholder comment at the top of the
       README with `![quinto](docs/demo.gif)`. Not done automatically because it
       installs vhs, ffmpeg and ttyd on your machine. **This is the single
@@ -349,13 +356,15 @@ Two release steps remain, both deliberately not automated.
       tape needs no edits, but nobody has yet watched v2's renderer paint this
       app in a real terminal emulator. Unit tests cover the rendered strings;
       only the GIF covers what it looks like.
-- [ ] **Publish.** Create the GitHub repo, push, cut a release with the
+- [x] ~~**Publish.**~~ Done 2026-07-26.
+
+  Original note: create the GitHub repo, push, cut a release with the
       binaries from `make release`, then open the PR against awesome-tuis under
       Dashboards. Outward-facing actions on your accounts.
 
 Optional, unblocking nothing:
 
-- [ ] Your own pageviews reach GoatCounter fine — the earlier ad-blocker
+- [x] Your own pageviews reach GoatCounter fine — the earlier ad-blocker
       suspicion was wrong, confirmed by a real sync. Nothing to fix.
 - [ ] Consider wiring `goatcounter.count()` into tillvonkrueger.com's router,
       so client-side navigation is recorded rather than only full loads.
@@ -364,5 +373,5 @@ Optional, unblocking nothing:
 
 ## Notes
 
-- Output of a `/grill-me` session, 2026-07-24. The plan changed substantially: audience changed, medium got an honest justification, the feature set inverted, "local" became an architecture, and the project reclassified from product to portfolio.
-- **Watch:** Claude authored more of this concept than Till did. Decision 2 (agent-readability) came from Claude, not from user evidence. It's the strongest differentiator on paper and also the least tested — treat as hypothesis.
+- Output of a `/grill-me` session, 2026-07-24. The plan changed substantially: audience changed, medium got an honest justification, the feature set inverted, "local" became an architecture, and and the project was reclassified from a product attempt to a deliberately unvalidated craft build.
+- **Least evidenced decision:** number 2, agent-readability. It is the strongest differentiator on paper and the one with the least behind it — no user was observed wanting it. Treat it as a hypothesis the tool is testing, not a finding it rests on. The sharpest input in the session went the other way: the target segment, developers already running agents in their terminal, came from Till and reframed everything downstream.
