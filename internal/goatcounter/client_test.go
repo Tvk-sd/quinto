@@ -144,24 +144,6 @@ func TestTransient404IsRetried(t *testing.T) {
 	}
 }
 
-// Creating an export is not idempotent and costs an hour of budget, so a
-// failure must surface rather than being retried.
-func TestCreateExportIsNotRetried(t *testing.T) {
-	var calls int
-	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"not found"}`))
-	})
-
-	if _, err := c.CreateExport(context.Background(), nil); err == nil {
-		t.Fatal("expected an error")
-	}
-	if calls != 1 {
-		t.Errorf("calls = %d, want 1 — creating an export must never be retried", calls)
-	}
-}
-
 func TestWaitForExportPollsUntilFinished(t *testing.T) {
 	var calls int
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -232,5 +214,74 @@ func TestDownloadEmptyExportIsNotAnError(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("got %d bytes, want 0", len(got))
+	}
+}
+
+// The live API returns transient 404s, and observation shows the export is
+// still created when one lands on POST /export: the budget is spent and the
+// export's ID disappears with the response. Retrying once converts that from a
+// bare "not found" into either a working export or an honest 429.
+func TestCreateExportRetriesOnceOn404(t *testing.T) {
+	var calls int
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(`{"id":11269,"format":"csv"}`))
+	})
+
+	ex, err := c.CreateExport(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("CreateExport: %v", err)
+	}
+	if ex.ID != 11269 {
+		t.Errorf("id = %d, want 11269", ex.ID)
+	}
+	if calls != 2 {
+		t.Errorf("calls = %d, want 2 (one 404, one success)", calls)
+	}
+}
+
+// When the 404'd request did create the export, the retry hits the rate limit.
+// The caller must get the retry window, not a confusing error.
+func TestCreateExportSurfacesRateLimitAfterA404(t *testing.T) {
+	var calls int
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"error": "rate limited exceeded; try again in 59m00s"}`))
+	})
+
+	_, err := c.CreateExport(context.Background(), nil)
+	var rl *RateLimitError
+	if !errors.As(err, &rl) {
+		t.Fatalf("err = %v, want *RateLimitError so the caller can report the wait", err)
+	}
+}
+
+// Anything other than a 404 stays un-retried: a duplicate export would spend a
+// second hour of budget, which is worse than failing loudly.
+func TestCreateExportDoesNotRetryOtherErrors(t *testing.T) {
+	var calls int
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"boom"}`))
+	})
+
+	if _, err := c.CreateExport(context.Background(), nil); err == nil {
+		t.Fatal("expected an error")
+	}
+	if calls != 1 {
+		t.Errorf("calls = %d, want 1 — only 404 is safe to retry", calls)
 	}
 }

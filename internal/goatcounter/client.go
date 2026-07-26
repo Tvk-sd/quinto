@@ -16,6 +16,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -165,8 +166,17 @@ func apiMessage(body []byte) string {
 // with a greater ID are included — GoatCounter's own cursor, which is why
 // quinto stores no watermark of its own.
 //
-// Not retried: creating an export is not idempotent, and a duplicate would
-// spend the hourly budget.
+// The transient 404s this API returns can land here too, and observation shows
+// **the export is still created when they do** — the request succeeds server
+// side and the response fails. That is the worst possible shape: the hourly
+// budget is spent, the export's ID is lost with the response, and the caller
+// sees a bare "not found".
+//
+// So a 404 is retried exactly once. If the first attempt really did create an
+// export, the retry comes back 429 and the caller can report an honest wait
+// instead of an error. If it did not, the retry simply succeeds. Other failures
+// are not retried: for those a duplicate creation is plausible, and silently
+// spending two hours of budget is worse than failing loudly.
 func (c *Client) CreateExport(ctx context.Context, startFromHitID *int64) (*Export, error) {
 	body := map[string]any{"format": "csv"}
 	if startFromHitID != nil {
@@ -174,6 +184,12 @@ func (c *Client) CreateExport(ctx context.Context, startFromHitID *int64) (*Expo
 	}
 
 	raw, _, err := c.do(ctx, http.MethodPost, "/export", body, false)
+
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+		time.Sleep(retryDelay)
+		raw, _, err = c.do(ctx, http.MethodPost, "/export", body, false)
+	}
 	if err != nil {
 		return nil, err
 	}
