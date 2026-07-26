@@ -85,16 +85,6 @@ func nullStr(s sql.NullString) string {
 	return s.String
 }
 
-func nonEmpty(in ...string) []string {
-	out := in[:0]
-	for _, s := range in {
-		if s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
 func truncate(s string, width int) string {
 	if width <= 1 || len([]rune(s)) <= width {
 		return s

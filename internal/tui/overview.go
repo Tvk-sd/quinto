@@ -86,8 +86,9 @@ func (m *Model) overviewView() string {
 // overviewFooter shortens rather than wrapping, same as the stream view's.
 func (m *Model) overviewFooter() string {
 	for _, hints := range []string{
-		"  tab stream · r range · b bots · ? help · q quit",
-		"  tab · r range · b · ? · q",
+		"  tab stream · / filter · r range · b bots · ? help · q quit",
+		"  tab · / filter · r range · b · ? · q",
+		"  tab · / · r · b · ? · q",
 		"  ? help · q quit",
 		"  ?",
 	} {
@@ -169,17 +170,18 @@ func (m *Model) sparkline(days []store.DayCount) string {
 	return out + "\n" + dim.Render(scale)
 }
 
-// columns renders top pages, referrers and countries side by side, falling
-// back to a single column when the terminal is narrow.
+// columns renders top pages, referrers and countries as three small tables —
+// header row, rule, aligned rows — side by side, falling back to one column
+// per row when the terminal is narrow.
 func (m *Model) columns(o store.Overview) string {
-	type col struct {
+	type panel struct {
 		title string
 		items []store.Count
 	}
-	cols := []col{
-		{"top pages", o.TopPages},
-		{"referrers", o.TopReferrers},
-		{"countries", o.TopCountries},
+	panels := []panel{
+		{"page", o.TopPages},
+		{"referrer", o.TopReferrers},
+		{"country", o.TopCountries},
 	}
 
 	const colWidth = 30
@@ -187,72 +189,148 @@ func (m *Model) columns(o store.Overview) string {
 
 	var b strings.Builder
 	if stacked {
-		for _, c := range cols {
-			b.WriteString(dim.Render("  "+c.title) + "\n")
-			b.WriteString(m.countList(c.items, m.width-4))
+		for _, p := range panels {
+			for _, line := range panelLines(p.title, p.items, m.width-4, len(p.items)) {
+				b.WriteString("  " + line + "\n")
+			}
 			b.WriteString("\n")
 		}
 		return b.String()
 	}
 
-	perRow := min(len(cols), max(1, (m.width-2)/colWidth))
-	for start := 0; start < len(cols); start += perRow {
-		end := min(len(cols), start+perRow)
-		group := cols[start:end]
+	perRow := min(len(panels), max(1, (m.width-2)/colWidth))
+	for start := 0; start < len(panels); start += perRow {
+		end := min(len(panels), start+perRow)
+		group := panels[start:end]
 
-		var titles []string
-		for _, c := range group {
-			titles = append(titles, padTo(c.title, colWidth))
+		maxRows := 0
+		for _, p := range group {
+			maxRows = max(maxRows, len(p.items))
 		}
-		b.WriteString("  " + dim.Render(strings.Join(titles, "")) + "\n")
 
-		rows := 0
-		for _, c := range group {
-			rows = max(rows, len(c.items))
+		blocks := make([][]string, len(group))
+		for i, p := range group {
+			blocks[i] = panelLines(p.title, p.items, colWidth, maxRows)
 		}
-		for i := 0; i < rows; i++ {
-			var cells []string
-			for _, c := range group {
-				if i < len(c.items) {
-					cells = append(cells, padTo(countLine(c.items[i], colWidth-1), colWidth))
-				} else {
-					cells = append(cells, strings.Repeat(" ", colWidth))
-				}
-			}
-			b.WriteString("  " + strings.TrimRight(strings.Join(cells, ""), " ") + "\n")
-		}
-		b.WriteString("\n")
+		b.WriteString(joinBlocks(blocks))
 	}
 	return b.String()
 }
 
-func (m *Model) countList(items []store.Count, width int) string {
+// panelLines renders one "label / N" table: a header row, a rule, then
+// exactly rows lines — blank-padded past the panel's own item count so it
+// lines up with taller neighbours when joined side by side. width is the
+// panel's whole slot, margin included, so joinBlocks can concatenate blocks
+// with no separator and still leave a gap between panels.
+//
+// Every line is padded to width as plain text before a style ever touches
+// it. Style codes are runes too, so padding a styled string would count
+// escape bytes as visible characters and misalign the column next to it —
+// the same trap dataLine's own comment warns about, one level up.
+func panelLines(title string, items []store.Count, width, rows int) []string {
+	const nWidth = 5
+	cols := []column{{title, max(4, width-nWidth-2), false}, {"n", nWidth, true}}
+
+	lines := []string{
+		header.Render(padTo(headerLine(cols), width)),
+		dim.Render(padTo(ruleLine(cols), width)),
+	}
+	for i := range rows {
+		if i < len(items) {
+			lines = append(lines, padTo(dataLine(cols, []string{items[i].Label, fmt.Sprint(items[i].N)}), width))
+		} else {
+			lines = append(lines, strings.Repeat(" ", width))
+		}
+	}
 	if len(items) == 0 {
-		return dim.Render("    —") + "\n"
+		lines = append(lines, dim.Render(padTo("—", width)))
+	}
+	return lines
+}
+
+// joinBlocks concatenates same-height line blocks side by side. Each block
+// is already padded to its own full slot width (margin included), so this
+// is plain string concatenation — no width recomputation, nothing to get
+// wrong by counting a style code as a column.
+func joinBlocks(blocks [][]string) string {
+	rows := 0
+	for _, blk := range blocks {
+		rows = max(rows, len(blk))
 	}
 	var b strings.Builder
-	for _, c := range items {
-		b.WriteString("    " + countLine(c, width-4) + "\n")
+	for i := range rows {
+		var cells []string
+		for _, blk := range blocks {
+			if i < len(blk) {
+				cells = append(cells, blk[i])
+			}
+		}
+		b.WriteString("  " + strings.Join(cells, "") + "\n")
 	}
 	return b.String()
 }
 
-// countLine returns plain text on purpose. Styling here would embed escape
-// codes that padTo then counts as visible characters, quietly misaligning
-// every column.
-func countLine(c store.Count, width int) string {
-	n := fmt.Sprint(c.N)
-	label := truncate(c.Label, max(3, width-len(n)-2))
-	gap := width - len([]rune(label)) - len(n)
-	if gap < 1 {
-		gap = 1
-	}
-	return label + strings.Repeat(" ", gap) + n
+// column, headerLine, ruleLine and dataLine build a small aligned table —
+// header row, rule, plain data rows — shared by the overview's three panels
+// and the stream view's visit list, so both screens read as one system
+// rather than two different layouts that happen to sit in the same app.
+type column struct {
+	title string
+	width int
+	right bool // right-align values; used for numeric columns
 }
 
+func headerLine(cols []column) string {
+	cells := make([]string, len(cols))
+	for i, c := range cols {
+		cells[i] = alignCell(c, strings.ToUpper(c.title))
+	}
+	return strings.Join(cells, " ")
+}
+
+func ruleLine(cols []column) string {
+	w := 0
+	for i, c := range cols {
+		w += c.width
+		if i > 0 {
+			w++ // the space between columns
+		}
+	}
+	return strings.Repeat("─", w)
+}
+
+// dataLine returns plain text on purpose, same reason countLine used to:
+// styling per cell here would embed escape codes that alignCell then counts
+// as visible characters, quietly misaligning every column.
+func dataLine(cols []column, cells []string) string {
+	out := make([]string, len(cols))
+	for i, c := range cols {
+		out[i] = alignCell(c, cells[i])
+	}
+	return strings.Join(out, " ")
+}
+
+func alignCell(c column, s string) string {
+	if c.right {
+		return padLeft(s, c.width)
+	}
+	return padTo(s, c.width)
+}
+
+// padTo truncates before padding — a cell longer than its column would
+// otherwise overflow the fixed width every row above and below it commits to.
 func padTo(s string, width int) string {
+	s = truncate(s, width)
 	if n := len([]rune(s)); n < width {
 		return s + strings.Repeat(" ", width-n)
+	}
+	return s
+}
+
+func padLeft(s string, width int) string {
+	s = truncate(s, width)
+	if n := len([]rune(s)); n < width {
+		return strings.Repeat(" ", width-n) + s
 	}
 	return s
 }

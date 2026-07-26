@@ -21,7 +21,7 @@ func TestOverviewShowsHeadlineNumbers(t *testing.T) {
 	out := m.render()
 
 	for _, want := range []string{"visitors", "pageviews", "events", "single-page",
-		"top pages", "referrers", "countries", "pageviews per day"} {
+		"PAGE", "REFERRER", "COUNTRY", "pageviews per day"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("overview is missing %q", want)
 		}

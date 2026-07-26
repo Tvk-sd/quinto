@@ -43,9 +43,14 @@ var (
 		Foreground(adaptive("130", "214")).
 		Bold(true)
 
+	// selected marks the current row with a full-width background band
+	// rather than coloured text — Till's call, after comparing against
+	// claws' table style (2026-07-26). Same accent hue as before (27/117
+	// blue), just carried by the background instead of the foreground.
 	selected = lipgloss.NewStyle().
-			Foreground(adaptive("27", "117")).
-			Bold(true)
+			Bold(true).
+			Foreground(adaptive("230", "0")).
+			Background(adaptive("27", "117"))
 
 	pathStyle = lipgloss.NewStyle().
 			Foreground(adaptive("22", "114"))
@@ -244,6 +249,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "/":
+			// Filtering selects visits, and the overview has no visit list to
+			// show the result in — pressing / there used to open a filter that
+			// narrowed a list off screen while the aggregates beside it stayed
+			// put. Take the reader to where the answer is visible.
+			m.screen = screenStream
 			m.filtering = true
 
 		case "up", "k":
@@ -410,12 +420,16 @@ func (m *Model) render() string {
 		return b.String()
 	}
 
+	b.WriteString(m.listHeader())
+	b.WriteString("\n")
+
 	lines, cursorLine, blockEnd := m.buildLines()
 
 	// Follow the whole selected block, not just its first line. Scrolling to
 	// the header alone leaves an expanded journey below the fold — which is
-	// the one thing the reader just asked to see.
-	viewport := max(3, m.height-4)
+	// the one thing the reader just asked to see. -6 rather than -4: the
+	// table header and rule are two more fixed lines above the scroll area.
+	viewport := max(3, m.height-6)
 	if cursorLine < m.offset {
 		m.offset = cursorLine
 	}
@@ -465,46 +479,103 @@ func (m *Model) buildLines() (lines []string, cursorLine, blockEnd int) {
 	return lines, cursorLine, blockEnd
 }
 
+// listLead is how many characters sit before the first column in every
+// list row: two spaces of indent, the ▶/▼ marker, and the gap after it. The
+// header row uses the same width of blank space so its text lines up with
+// the data underneath, and hitLine's own indent nests one step past it.
+const listLead = 4
+
+// listColumns picks a column set for the terminal width. Three tiers, not a
+// generic shrink-to-fit: explicit thresholds match how the rest of this
+// package handles narrow terminals (see overviewFooter, headerView) rather
+// than a clever algorithm nobody can eyeball. Source shrinks first — Till's
+// call, after comparing against claws' table (2026-07-26) — because it's
+// the one column still useful cut short; time, country and browser identify
+// the visit and events is dropped before either of those would be.
+func listColumns(width int) []column {
+	switch {
+	case width >= 70:
+		return withSource(width, 36, []column{
+			{"time", 12, false}, {"country", 7, false}, {"browser", 8, false},
+			{"source", 0, false}, {"pages", 5, true}, {"events", 6, true}, {"dur", 6, true},
+		})
+	case width >= 50:
+		return withSource(width, 24, []column{
+			{"time", 9, false}, {"country", 7, false}, {"browser", 8, false},
+			{"source", 0, false}, {"pages", 5, true}, {"dur", 6, true},
+		})
+	default:
+		return withSource(width, 15, []column{
+			{"time", 5, false}, {"country", 4, false},
+			{"source", 0, false}, {"pages", 3, true}, {"dur", 5, true},
+		})
+	}
+}
+
+// withSource gives the source column whatever width is left after every
+// other column and gap in cols, floored so it never vanishes and capped so
+// it doesn't stretch pointlessly wide on a large terminal.
+func withSource(width, cap int, cols []column) []column {
+	overhead := listLead + len(cols) - 1 // gaps between columns
+	idx := -1
+	for i, c := range cols {
+		if c.title == "source" {
+			idx = i
+			continue
+		}
+		overhead += c.width
+	}
+	avail := width - overhead
+	if avail > cap {
+		avail = cap
+	}
+	if avail < 4 {
+		avail = 4
+	}
+	cols[idx].width = avail
+	return cols
+}
+
+// listHeader is the table's header row and rule, rendered once above the
+// scrolling rows rather than as part of them — it stays on screen while the
+// list scrolls, like claws' header does.
+func (m *Model) listHeader() string {
+	cols := listColumns(m.width)
+	prefix := strings.Repeat(" ", listLead)
+	return prefix + header.Render(headerLine(cols)) + "\n" +
+		prefix + dim.Render(ruleLine(cols))
+}
+
 func (m *Model) sessionLine(s store.Session, isCursor bool) string {
 	marker := "▶"
 	if m.expanded[s.ID] {
 		marker = "▼"
 	}
 
-	when := formatTime(s.FirstSeen)
-	who := strings.Join(nonEmpty(
-		nullStr(s.Country),
-		shortBrowser(nullStr(s.Browser)),
-		referrerLabel(s.Referrer),
-	), " · ")
-
-	pages := fmt.Sprintf("%d page", s.PageCount)
-	if s.PageCount != 1 {
-		pages += "s"
+	cols := listColumns(m.width)
+	values := map[string]string{
+		"time":    formatTime(s.FirstSeen),
+		"country": nullStr(s.Country),
+		"browser": shortBrowser(nullStr(s.Browser)),
+		"source":  referrerLabel(s.Referrer),
+		"pages":   fmt.Sprint(s.PageCount),
+		"events":  fmt.Sprint(s.EventCount),
+		"dur":     formatDuration(s.Duration),
 	}
-	if s.EventCount > 0 {
-		pages += fmt.Sprintf(" · %d ev", s.EventCount)
+	cells := make([]string, len(cols))
+	for i, c := range cols {
+		cells[i] = values[c.title]
 	}
+	line := "  " + marker + " " + dataLine(cols, cells)
 
-	right := pages + " · " + formatDuration(s.Duration)
-	left := fmt.Sprintf("%s %s  %s", marker, when, who)
-
-	// A visit can match on a page its row never shows, so say which one.
-	// Assembled as plain text and styled with the rest of the line — styling
-	// here would put escape codes inside the width arithmetic below.
+	// A visit can match on a page its row never shows, so say which one —
+	// appended after the table rather than in it, since it names a whole
+	// path rather than a value that fits a column.
 	if s.Match != "" {
-		left += "  ← " + s.Match
-	}
-
-	// Pad so the right-hand column lines up, but never wrap the terminal.
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
-	if gap < 1 {
-		gap = 1
-		if trim := m.width - lipgloss.Width(right) - 4; trim > 10 && lipgloss.Width(left) > trim {
-			left = truncate(left, trim)
+		if avail := m.width - lipgloss.Width(line) - 4; avail > 3 {
+			line += "  ← " + truncate(s.Match, avail-4)
 		}
 	}
-	line := "  " + left + strings.Repeat(" ", gap) + right
 
 	switch {
 	case isCursor:
