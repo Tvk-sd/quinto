@@ -172,7 +172,16 @@ func randomMoment(r *rand.Rand, opt Options) time.Time {
 	t = time.Date(t.Year(), t.Month(), t.Day(), hour, r.IntN(60), r.IntN(60), 0, time.UTC)
 
 	// Weekends are quieter for a professional site; drop some of them.
-	if wd := t.Weekday(); (wd == time.Saturday || wd == time.Sunday) && r.IntN(100) < 45 {
+	//
+	// The roll is taken unconditionally and only then applied. Putting r.IntN
+	// inside the condition made the number of random draws depend on which
+	// calendar days happened to be weekends — which depends on EndsAt, which
+	// is the wall clock. Two runs on different weekdays then produced entirely
+	// different data from the same seed, and because hit keys are stable while
+	// timestamps are not, merging those runs stitched hits weeks apart into one
+	// session. A third of the demo data ended up with visits lasting days.
+	weekendRoll := r.IntN(100)
+	if wd := t.Weekday(); (wd == time.Saturday || wd == time.Sunday) && weekendRoll < 45 {
 		t = t.Add(-48 * time.Hour)
 	}
 	return t

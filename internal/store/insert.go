@@ -69,6 +69,20 @@ func (db *DB) InsertHits(ctx context.Context, hits []Hit) (inserted int, err err
 	return inserted, nil
 }
 
+// Reset empties the database. Only the demo path uses this: regenerating
+// sample data must replace it, not merge with it. Merging looks harmless
+// because hit keys are stable, but the timestamps are anchored to the run's
+// wall clock — so two runs on different days silently produce sessions that
+// span the gap between them.
+func (db *DB) Reset(ctx context.Context) error {
+	for _, stmt := range []string{`DELETE FROM hits`, `DELETE FROM sync_state`} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("resetting database: %w", err)
+		}
+	}
+	return nil
+}
+
 // SyncState describes the last sync, so the interface can say how old its
 // numbers are instead of presenting stale data as current.
 type SyncState struct {

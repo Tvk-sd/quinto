@@ -60,6 +60,68 @@ func TestGenerationIsReproducible(t *testing.T) {
 	}
 }
 
+// Generation must not depend on what day it happens to run.
+//
+// The weekend adjustment originally drew its random number inside the
+// condition, so the number of draws depended on which calendar days fell on a
+// weekend — which depends on EndsAt, which is the wall clock. Two runs on
+// different weekdays produced completely different data from the same seed.
+// Because hit keys are stable while timestamps are not, merging such runs
+// stitched hits weeks apart into a single session: a third of the sample
+// showed visits lasting days.
+func TestGenerationDoesNotDependOnTheCalendar(t *testing.T) {
+	keysFor := func(endsAt time.Time) map[string]bool {
+		opt := Defaults()
+		opt.EndsAt = endsAt
+
+		db := generate(t, opt)
+		res, err := db.Query(context.Background(), `SELECT hit_key FROM hits`)
+		if err != nil {
+			t.Fatalf("query: %v", err)
+		}
+		keys := make(map[string]bool, len(res.Rows))
+		for _, r := range res.Rows {
+			k, _ := r[0].(string)
+			keys[k] = true
+		}
+		return keys
+	}
+
+	// A Monday and a Saturday: different weekend layouts across the window.
+	monday := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+	saturday := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+
+	a, b := keysFor(monday), keysFor(saturday)
+	if len(a) != len(b) {
+		t.Fatalf("different hit counts by weekday: %d vs %d — generation is calendar dependent", len(a), len(b))
+	}
+	for k := range a {
+		if !b[k] {
+			t.Fatalf("hit %q exists in one run but not the other — generation is calendar dependent", k)
+		}
+	}
+}
+
+// No visit may span longer than the generator can produce. A session is at
+// most nine pages a few minutes apart, so anything over an hour means hits
+// from different runs were merged into one session.
+func TestNoImpossiblyLongSessions(t *testing.T) {
+	db := generate(t, testOptions())
+
+	res, err := db.Query(context.Background(), `
+		SELECT session, duration_seconds FROM sessions
+		WHERE duration_seconds > 3600 ORDER BY duration_seconds DESC LIMIT 5`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if len(res.Rows) > 0 {
+		session, _ := res.Rows[0][0].(string)
+		secs, _ := res.Rows[0][1].(int64)
+		t.Errorf("%d sessions last over an hour; worst is %s at %dh — hits from separate runs were merged",
+			len(res.Rows), session, secs/3600)
+	}
+}
+
 // Regenerating must not double the dataset — keys are derived from the seed,
 // so a second run inserts nothing.
 func TestRegeneratingIsANoOp(t *testing.T) {

@@ -253,8 +253,11 @@ func toStoreHits(in []goatcounter.Hit) []store.Hit {
 // different file than sync, so it can never overwrite real data — the
 // separation is structural rather than a guard someone has to remember.
 //
-// Generation is seeded, and hit keys are derived from the seed, so running it
-// twice adds nothing rather than doubling the dataset.
+// It replaces the demo data rather than merging into it. Merging seemed safe
+// because hit keys are stable across runs, but the timestamps are anchored to
+// the run's wall clock: two runs on different days stitched hits weeks apart
+// into single sessions, and a third of the sample ended up showing visits that
+// lasted days.
 func runDemo(path string) error {
 	db, err := store.Open(path)
 	if err != nil {
@@ -263,6 +266,10 @@ func runDemo(path string) error {
 	defer db.Close()
 
 	ctx := context.Background()
+	if err := db.Reset(ctx); err != nil {
+		return err
+	}
+
 	opts := demo.Defaults()
 	sessions, hits, err := demo.Generate(ctx, db, opts)
 	if err != nil {
@@ -272,12 +279,8 @@ func runDemo(path string) error {
 		return err
 	}
 
-	if hits == 0 {
-		fmt.Printf("Demo data already present in %s.\n", path)
-	} else {
-		fmt.Printf("Generated %d sessions (%d pageviews) over %d days in %s.\n",
-			sessions, hits, opts.Days, path)
-	}
+	fmt.Printf("Generated %d sessions (%d pageviews) over %d days in %s.\n",
+		sessions, hits, opts.Days, path)
 	fmt.Println("View it with: quinto --demo")
 	return nil
 }

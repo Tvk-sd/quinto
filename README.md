@@ -2,10 +2,20 @@
 
 **Web analytics in your terminal — and in your agent's.**
 
-`quinto` syncs your pageviews into a local SQLite file, then reads them. The
-terminal UI and the SQL interface look at the same file, so the agent already
-running in your terminal can interrogate your traffic directly — no API, no
-credentials, no rate limit in the way.
+Analytics tools are built for sites with traffic. If yours gets fifty visits a
+week, a dashboard of percentages and trend lines tells you nothing true: the
+numbers are too small to mean anything, and the interface is designed to hide
+that from you. A 58% bounce rate out of nineteen visits is not a measurement.
+
+**quinto is for small sites, where the only honest thing to show is the visits
+themselves.** Somebody came from Hacker News, read three pages over eight
+minutes, and left from `/work`. That is a real fact about a real person. It is
+also the entire customer journey, at the only sample size you actually have.
+
+It syncs your pageviews into a SQLite file on your machine and reads them from
+there. The terminal UI and the SQL interface look at the same file — so the
+agent already running in your terminal can answer questions about your traffic
+without an integration, an API key, or your permission slip.
 
 ![quinto](docs/demo.gif)
 
@@ -59,13 +69,13 @@ reached it second or third, not only those who arrived on it. Those rows say
 which page matched, because nothing else on them would show it.
 
 ```
-  ▶ Mon 16:09  GB · Safari · direct     ← /contact       3 pages · 2 ev · 52h19m
-  ▶ Mon 15:30  DE · Firefox · direct    ← /contact       3 pages · 1 ev · 30h28m
-  ▶ Mon 12:06  DE · Safari · Hacker News ← /contact      3 pages · 1 ev · 3m48s
-/contact  48 matching  ↑↓ move · enter expand · esc clear filter · ? help · q quit
+  ▶ Fri 14:05  JP · Edge · Google         ← /contact      2 pages · 38s
+  ▶ Fri 11:34  IN · Chrome · Google       ← /contact      4 pages · 1 ev · 3m48s
+  ▶ Fri 08:09  DE · Safari · newsletter   ← /contact      2 pages · 1m13s
+/contact  32 matching  ↑↓ move · enter expand · esc clear filter · ? help · q quit
 ```
 
-In the sample data nobody lands on `/contact` — 48 visits reach it anyway.
+In the sample data nobody lands on `/contact` — 32 visits reach it anyway.
 The filter runs as a single SQL statement, so it is also a query you can hand
 to an agent.
 
@@ -101,6 +111,35 @@ Every screen in demo mode is labelled `DEMO DATA`.
 `quinto` reads from [GoatCounter](https://www.goatcounter.com), which is open
 source, privacy-first, needs no cookie banner, and is free for personal and
 small-business use.
+
+<details>
+<summary><strong>Why GoatCounter and not Plausible, Umami or Cloudflare?</strong></summary>
+
+Because **raw per-visit rows are the thing analytics vendors charge for**, and
+quinto cannot work without them. Aggregates are cheap to serve and get given
+away; individual rows are the product. Every candidate was checked on that one
+axis first:
+
+| | free | hosted | per-visit rows |
+|---|---|---|---|
+| **GoatCounter** | ✅ | ✅ | ✅ export API with session IDs and a bot flag |
+| PostHog Cloud | ✅ | ✅ | ✅ but a heavy bundle and a consent surface for a visit list |
+| **Plausible** | ❌ no free tier | ✅ | ❌ Stats API is a *Business-plan* feature, and returns aggregates even then |
+| Fathom, Simple Analytics | ❌ | ✅ | ❌ aggregated |
+| **Umami Cloud** | ❌ API is €20/mo | ✅ | ✅ |
+| Cloudflare | ✅ | ✅ | ❌ raw logs are Enterprise-only |
+
+Plausible is the better *product* — nicer dashboard, more polish. It is
+unusable here at **any** price, because there is no per-visit row to fetch.
+Price is not why it loses; shape is.
+
+GoatCounter is not the prettiest of these. It is the one whose data model
+fits — and its export happens to carry exactly the two fields this tool needs
+most: a session identifier, so visits can be grouped into journeys, and a bot
+classification, so the crawler traffic that dominates small sites can be set
+aside without being destroyed.
+
+</details>
 
 **1. Create a GoatCounter site** and add the tracking snippet to your pages.
 
@@ -152,25 +191,48 @@ quinto
 
 ## For agents
 
-This is the part that makes `quinto` different from a prettier dashboard.
+A dashboard can only answer the questions someone built a screen for. Ask it
+*"did the people who read the pricing page come from the newsletter or from
+Google?"* and you are out of luck unless that view exists.
 
-The data is a plain SQLite file. Point your agent at the CLI and it can answer
-questions about your traffic without an integration:
+**quinto's data is a file, so there is no screen to be missing.** Ask the agent
+already sitting in your terminal, in whatever words you'd use, and it can go
+find out:
+
+> *"Which pages do people reach after landing on the blog, and how long do
+> those visits run?"*
 
 ```sh
-quinto schema
-quinto query "select path, count(*) c from hits where bot = 0
-              group by 1 order by c desc limit 10" --json
+quinto query "select h2.path, count(*) visits, avg(s.duration_seconds) secs
+              from hits h1
+              join hits h2 on h2.session = h1.session and h2.path != h1.path
+              join sessions s on s.session = h1.session
+              where h1.first_visit = 1 and h1.path like '/writing%' and h1.bot = 0
+              group by 1 order by visits desc" --json
 ```
 
-- `quinto schema` prints the real DDL, so an agent that has never seen the
-  project can write a correct query from the CLI alone.
-- `--json` gives machine-readable output; without it you get a table.
-- The connection is **read-only twice over** — the file opens `mode=ro` and
-  `query_only` is set. An agent exploring your data cannot damage it.
-- No database client needs to be installed. The binary is the client.
+Nobody built that report. The agent wrote it, because it could read the schema
+and the data is just SQL.
 
-Two things worth telling your agent, both included in `quinto help`:
+**What makes that work rather than being a nice idea:**
+
+- **No integration to build.** No MCP server, no API wrapper, no plugin. If the
+  agent can run a command, it's done.
+- **No credentials to hand over.** Your GoatCounter token stays in `sync`. The
+  query path never touches the network, so an agent reading your analytics is
+  never an agent holding your keys.
+- **No rate limit between the question and the answer.** GoatCounter allows one
+  export an hour; your agent can run four hundred queries a minute against the
+  local file.
+- **`quinto schema` prints the real DDL**, so an agent that has never seen this
+  project writes a correct query on the first try instead of guessing column
+  names.
+- **Read-only twice over** — the file opens `mode=ro` *and* sets `query_only`.
+  An agent exploring your data cannot damage it, including by accident.
+- **No database client needed.** The binary is the client.
+
+Two things worth putting in your agent's instructions, both also in
+`quinto help`:
 
 - Bots are **stored, not filtered**. Add `where bot = 0` for human traffic.
 - `sessions.duration_seconds` is **NULL** for visits with a single
