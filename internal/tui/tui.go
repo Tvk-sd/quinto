@@ -80,8 +80,9 @@ const (
 // Model is the TUI's state, shared by both screens so switching never changes
 // what period you are looking at.
 type Model struct {
-	db     *store.DB
-	isDemo bool
+	db        *store.DB
+	isDemo    bool
+	siteLabel string // empty unless which site is on screen would be ambiguous
 
 	sessions []store.Session
 	hits     map[string][]store.SessionHit
@@ -121,14 +122,15 @@ type Model struct {
 // New loads the data the view needs. The dataset is small and local, so
 // loading synchronously keeps the model simple — there is no spinner to
 // justify.
-func New(db *store.DB, isDemo bool) (*Model, error) {
+func New(db *store.DB, isDemo bool, siteLabel string) (*Model, error) {
 	m := &Model{
-		db:       db,
-		isDemo:   isDemo,
-		hits:     map[string][]store.SessionHit{},
-		expanded: map[string]bool{},
-		width:    80,
-		height:   24,
+		db:        db,
+		isDemo:    isDemo,
+		siteLabel: siteLabel,
+		hits:      map[string][]store.SessionHit{},
+		expanded:  map[string]bool{},
+		width:     80,
+		height:    24,
 		// Land on the overview first: a raw visit list has no context for a
 		// reader who just opened the app. tab still reaches the stream.
 		screen: screenOverview,
@@ -605,6 +607,9 @@ func (m *Model) headerView() string {
 	}
 
 	segs := []segment{{"quinto", header}}
+	if m.siteLabel != "" {
+		segs = append(segs, segment{m.siteLabel, dim})
+	}
 	if m.isDemo {
 		segs = append(segs, segment{"DEMO DATA", demoTag})
 	}
@@ -747,9 +752,10 @@ func (m *Model) helpView() string {
 		dim.Render("  press ? to go back") + "\n"
 }
 
-// Run starts the stream view.
-func Run(db *store.DB, isDemo bool) error {
-	m, err := New(db, isDemo)
+// Run starts the stream view. siteLabel is shown in the header when it's
+// non-empty — leave it "" when there is only one site and no ambiguity.
+func Run(db *store.DB, isDemo bool, siteLabel string) error {
+	m, err := New(db, isDemo, siteLabel)
 	if err != nil {
 		return err
 	}

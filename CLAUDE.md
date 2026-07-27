@@ -46,3 +46,14 @@ documentation would encode those errors.
 `make test` before pushing. `make demo-gif` re-records the README GIF after any
 UI change: the tape walks a fixed path, so changing which screen opens first
 silently turns the GIF into a picture of software that no longer exists.
+
+## Tickets
+
+Tickets live in `.scratch/*/issues/`. A ticket cannot carry `Status:
+ready-for-agent` without a `## Design` section covering its load-bearing
+technical decisions, reviewed and resolved by Till — not just a "what to
+build" and a UI mockup. A ticket whose implementation would otherwise
+require inventing architecture on the fly (which package owns what, how a
+constraint like "never talks to the network" survives a new feature, what a
+resource limit actually allows) gets that invented *before* it's marked
+ready, in the open, not during the build.

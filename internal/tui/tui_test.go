@@ -32,7 +32,7 @@ func demoModel(t *testing.T) *Model {
 		t.Fatalf("RecordSync: %v", err)
 	}
 
-	m, err := New(db, true)
+	m, err := New(db, true, "")
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -67,6 +67,32 @@ func TestRendersHeaderAndVisits(t *testing.T) {
 	}
 	if !strings.Contains(out, "▶") {
 		t.Error("expected collapsed visit markers")
+	}
+}
+
+// With several sites configured, the header has to say which one is on
+// screen — a header that doesn't is a screen you can misread.
+func TestHeaderShowsSiteLabelWhenSet(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	opt := demo.Defaults()
+	opt.EndsAt = time.Now()
+	if _, _, err := demo.Generate(context.Background(), db, opt); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	m, err := New(db, false, "mctimey")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	m.width, m.height = 96, 24
+
+	if !strings.Contains(m.render(), "mctimey") {
+		t.Error("header should show the site label when one is set")
 	}
 }
 
@@ -269,7 +295,7 @@ func TestEmptyDatabaseExplainsWhatToDo(t *testing.T) {
 	}
 	defer db.Close()
 
-	m, err := New(db, false)
+	m, err := New(db, false, "")
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

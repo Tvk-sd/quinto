@@ -48,7 +48,7 @@ func filterModel(t *testing.T) *Model {
 		t.Fatalf("InsertHits: %v", err)
 	}
 
-	m, err := New(db, false)
+	m, err := New(db, false, "")
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

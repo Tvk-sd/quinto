@@ -17,6 +17,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/Tvk-sd/quinto/internal/config"
 	"github.com/Tvk-sd/quinto/internal/demo"
 	"github.com/Tvk-sd/quinto/internal/goatcounter"
@@ -28,6 +30,7 @@ const usage = `quinto — web analytics in your terminal
 
 USAGE
   quinto                        Open the dashboard
+  quinto sites                  List configured sites and their last sync
   quinto list                   Print recent visits as a table
   quinto sync                   Pull new pageviews from GoatCounter
   quinto demo                   Fill a separate database with sample traffic
@@ -36,9 +39,10 @@ USAGE
   quinto path                   Print the database file location
 
 FLAGS
-  --demo        Read the demo database instead of your own data
-  --db <path>   Use a specific database file
-  --json        Emit JSON instead of a table (for scripts and agents)
+  --demo         Read the demo database instead of your own data
+  --db <path>    Use a specific database file
+  --site <name>  Use a named site from ~/.config/quinto/config
+  --json         Emit JSON instead of a table (for scripts and agents)
 
 FOR AGENTS
   The data is a plain SQLite file. Start with 'quinto schema', then query it.
@@ -71,6 +75,7 @@ func run(args []string) error {
 	dbPath := fs.String("db", "", "path to the database file")
 	asJSON := fs.Bool("json", false, "emit JSON instead of a table")
 	demoMode := fs.Bool("demo", false, "read the demo database")
+	site := fs.String("site", "", "use a named site from the config file")
 
 	// Split the subcommand from its flags so `quinto query "..." --json`
 	// works in the order people actually type it.
@@ -79,7 +84,8 @@ func run(args []string) error {
 	// by the leading dash left `--db` behind while its path went into the
 	// positional list, so `--db /some/file` failed with "flag needs an
 	// argument" — a documented flag that never worked in its documented form.
-	takesValue := map[string]bool{"-db": true, "--db": true}
+	// --site needs the same treatment, for the same reason.
+	takesValue := map[string]bool{"-db": true, "--db": true, "-site": true, "--site": true}
 
 	var positional []string
 	var flags []string
@@ -99,6 +105,37 @@ func run(args []string) error {
 		return err
 	}
 
+	// An unrecognised --site fails here, before anything else runs — even
+	// for commands that never touch the network. Otherwise a typo silently
+	// opens (or creates) an empty database nobody configured, for every
+	// command that only reads a db file rather than syncing one.
+	//
+	// The matched entry's IsDefault also decides the database file below: the
+	// default is addressable by its derived name, but it still keeps
+	// quinto.db rather than getting a name-derived file of its own.
+	siteIsDefault := false
+	if *site != "" {
+		sites, err := config.Sites()
+		if err != nil {
+			return err
+		}
+		known := false
+		names := make([]string, len(sites))
+		for i, s := range sites {
+			names[i] = s.Name
+			if s.Name == *site {
+				known = true
+				siteIsDefault = s.IsDefault
+			}
+		}
+		if !known {
+			if len(names) == 0 {
+				return fmt.Errorf("no such site %q — no sites are configured in ~/.config/quinto/config", *site)
+			}
+			return fmt.Errorf("no such site %q; configured: %s", *site, strings.Join(names, ", "))
+		}
+	}
+
 	// Demo data lives in its own file. Keeping it separate — rather than
 	// tagging rows inside the shared schema — means demo mode cannot touch
 	// real data, and the schema an agent reads stays free of bookkeeping.
@@ -107,8 +144,15 @@ func run(args []string) error {
 	path := *dbPath
 	if path == "" {
 		name := "quinto.db"
-		if isDemo {
+		switch {
+		// Demo wins over --site rather than erroring on the combination:
+		// demo data isn't per-site, there's exactly one demo database, and
+		// `--demo --site X` has an obvious reading (show me sample data)
+		// rather than an ambiguous one.
+		case isDemo:
 			name = "quinto-demo.db"
+		case *site != "" && !siteIsDefault:
+			name = *site + ".db"
 		}
 		p, err := store.DefaultPath(name)
 		if err != nil {
@@ -118,12 +162,20 @@ func run(args []string) error {
 	}
 
 	if len(positional) == 0 {
-		return runTUI(path, isDemo)
+		// A config.Sites() failure here falls through to today's exact
+		// runTUI call rather than propagating — the bare invocation never
+		// needed config before the picker existed, and it shouldn't start
+		// needing it now just to fail on an edge case runTUI itself doesn't
+		// care about.
+		if sites, err := config.Sites(); err == nil && shouldShowPicker(isDemo, *dbPath, *site, len(sites)) {
+			return runPicker()
+		}
+		return runTUI(path, isDemo, *site)
 	}
 
 	switch positional[0] {
 	case "sync":
-		return runSync(path)
+		return runSync(path, *site)
 	case "demo":
 		return runDemo(path)
 	case "list":
@@ -138,6 +190,8 @@ func run(args []string) error {
 	case "path":
 		fmt.Println(path)
 		return nil
+	case "sites":
+		return runSites()
 	case "help":
 		fmt.Print(usage)
 		return nil
@@ -171,8 +225,8 @@ func runQuery(path, query string, asJSON bool) error {
 // Exports are rate limited to roughly one an hour, so hitting that limit is a
 // normal outcome, not a failure: it reports when the next sync is possible and
 // exits successfully.
-func runSync(path string) error {
-	cfg, err := config.Load()
+func runSync(path, site string) error {
+	cfg, err := config.Load(site)
 	if err != nil {
 		return err
 	}
@@ -298,14 +352,31 @@ func runDemo(path string) error {
 }
 
 // runTUI opens the dashboard: the overview first, tab away to the stream.
-func runTUI(path string, isDemo bool) error {
+func runTUI(path string, isDemo bool, site string) error {
 	db, err := store.OpenReadOnly(path)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	return tui.Run(db, isDemo)
+	return tui.Run(db, isDemo, siteLabel(isDemo, site))
+}
+
+// siteLabel decides whether the TUI header needs to say which site it's
+// showing. A plain single-site setup renders exactly as before named sites
+// existed — the label only appears once which site is on screen could
+// actually be ambiguous.
+func siteLabel(isDemo bool, site string) string {
+	if isDemo {
+		return ""
+	}
+	if site != "" {
+		return site
+	}
+	if sites, err := config.Sites(); err == nil && len(sites) > 1 {
+		return sites[0].Name
+	}
+	return ""
 }
 
 // runList prints recent visits as a plain table. The TUI is the main
@@ -351,6 +422,210 @@ func runList(path string, isDemo bool) error {
 	}
 
 	return writeTable(res)
+}
+
+// runSites lists every configured site and when it was last synced. It never
+// creates a database for a site that's never been touched — os.Stat decides
+// whether there's anything to open, same as runList's "never synced" case.
+func runSites() error {
+	sites, err := config.Sites()
+	if err != nil {
+		return err
+	}
+	if len(sites) == 0 {
+		fmt.Println("No sites configured — set site/token in ~/.config/quinto/config, " +
+			"or QUINTO_GOATCOUNTER_SITE and QUINTO_GOATCOUNTER_TOKEN.")
+		return nil
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "NAME\tHOST\tLAST SYNCED")
+	for _, s := range sites {
+		name := s.Name + ".db"
+		if s.IsDefault {
+			name = "quinto.db"
+		}
+		dbPath, err := store.DefaultPath(name)
+		if err != nil {
+			return err
+		}
+
+		// A missing file and a broken one are different states — the first is
+		// "run quinto sync", the second is a bug worth seeing, not a database
+		// that looks identical to one nobody has touched yet.
+		lastSynced := "never synced"
+		if _, statErr := os.Stat(dbPath); statErr == nil {
+			db, openErr := store.OpenReadOnly(dbPath)
+			if openErr != nil {
+				lastSynced = fmt.Sprintf("unreadable: %s", openErr)
+			} else {
+				if state, sErr := db.SyncState(context.Background()); sErr != nil {
+					lastSynced = fmt.Sprintf("unreadable: %s", sErr)
+				} else if state.Synced {
+					lastSynced = time.Since(state.LastSyncedAt).Round(time.Minute).String() + " ago"
+				}
+				db.Close()
+			}
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\n", s.Name, s.Site, lastSynced)
+	}
+	return w.Flush()
+}
+
+// shouldShowPicker decides whether the bare `quinto` invocation opens the
+// multi-site start screen or goes straight to the dashboard. Any explicit
+// override (--db, --site, demo) bypasses it entirely, and it never appears
+// with one or zero sites configured — matching today's exact behaviour for
+// that case (ticket 02's Design decision #6).
+func shouldShowPicker(isDemo bool, dbPath, site string, configuredSites int) bool {
+	return !isDemo && dbPath == "" && site == "" && configuredSites > 1
+}
+
+// siteDBPath resolves a chosen site's database file by name, the same way
+// the --site flag's path resolution does — used by the picker, which works
+// with names the reader picked interactively rather than an already-validated
+// flag value.
+func siteDBPath(name string) (string, error) {
+	sites, err := config.Sites()
+	if err != nil {
+		return "", err
+	}
+	for _, s := range sites {
+		if s.Name != name {
+			continue
+		}
+		if s.IsDefault {
+			return store.DefaultPath("quinto.db")
+		}
+		return store.DefaultPath(name + ".db")
+	}
+	return "", fmt.Errorf("no such site %q", name)
+}
+
+// siteRows builds the picker's data: every configured site's totals and
+// last-sync time, plus a synthesized demo row if quinto-demo.db exists.
+// Recomputed on every return to the picker rather than cached once — a
+// fresh sync or a dashboard visit is exactly when the freshness column
+// needs to be current.
+func siteRows() ([]tui.SiteRow, error) {
+	sites, err := config.Sites()
+	if err != nil {
+		return nil, err
+	}
+
+	rows := make([]tui.SiteRow, 0, len(sites)+1)
+	for _, s := range sites {
+		name := s.Name + ".db"
+		if s.IsDefault {
+			name = "quinto.db"
+		}
+		path, err := store.DefaultPath(name)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, siteRow(s.Name, path))
+	}
+
+	if demoPath, err := store.DefaultPath("quinto-demo.db"); err == nil {
+		if _, statErr := os.Stat(demoPath); statErr == nil {
+			row := siteRow("quinto-demo", demoPath)
+			row.IsDemo = true
+			row.LastSynced = "demo data"
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+// siteRow reads one site's totals and sync state from its database file. A
+// missing file is "never synced", not an error — a normal state for a site
+// nobody has synced yet. A file that exists but won't open or query reports
+// why, the same distinction `quinto sites` already makes, rather than
+// looking identical to a site nobody has touched.
+func siteRow(name, path string) tui.SiteRow {
+	row := tui.SiteRow{Name: name, LastSynced: "never synced"}
+
+	if _, statErr := os.Stat(path); statErr != nil {
+		return row
+	}
+	db, err := store.OpenReadOnly(path)
+	if err != nil {
+		row.LastSynced = fmt.Sprintf("unreadable: %s", err)
+		return row
+	}
+	defer db.Close()
+
+	totals, err := db.Totals(context.Background())
+	if err != nil {
+		row.LastSynced = fmt.Sprintf("unreadable: %s", err)
+		return row
+	}
+	row.Visits, row.Pageviews = totals.Sessions, totals.Hits
+
+	if state, err := db.SyncState(context.Background()); err == nil && state.Synced {
+		row.LastSynced = time.Since(state.LastSyncedAt).Round(time.Minute).String() + " ago"
+	}
+	return row
+}
+
+// runPicker is the multi-site start screen's event loop. Opening a
+// dashboard or running a sync both exit the picker's program; looping back
+// here to launch it again is what "going back to the list" actually is —
+// there is no back keybinding inside the picker or the dashboard themselves
+// (ticket 02's Design decision #6).
+func runPicker() error {
+	for {
+		rows, err := siteRows()
+		if err != nil {
+			return err
+		}
+
+		final, err := tea.NewProgram(tui.NewPicker(rows)).Run()
+		if err != nil {
+			return err
+		}
+		result := final.(*tui.Picker).Result()
+
+		switch result.Action {
+		case tui.ActionQuit:
+			return nil
+
+		case tui.ActionOpen:
+			if result.Site == "quinto-demo" {
+				path, err := store.DefaultPath("quinto-demo.db")
+				if err != nil {
+					return err
+				}
+				if err := runTUI(path, true, ""); err != nil {
+					return err
+				}
+				continue
+			}
+			path, err := siteDBPath(result.Site)
+			if err != nil {
+				return err
+			}
+			if err := runTUI(path, false, result.Site); err != nil {
+				return err
+			}
+
+		case tui.ActionSync:
+			path, err := siteDBPath(result.Site)
+			if err != nil {
+				return err
+			}
+			if err := runSync(path, result.Site); err != nil {
+				return err
+			}
+			// Without this, the sync's own status line (or the rate-limit
+			// message) flashes by the instant the picker's alt-screen takes
+			// over again — the opposite of "reports when the next slot
+			// opens" if nobody can actually read it.
+			fmt.Print("\npress enter to continue…")
+			fmt.Scanln()
+		}
+	}
 }
 
 func runSchema(path string) error {
