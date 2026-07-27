@@ -8,6 +8,17 @@
 //   - start_from_hit_id is the CSV cursor; JSON only offers start_from_day
 //   - exports are rate limited to roughly one per hour, separate from the
 //     documented 4 req/s
+//   - that hourly export budget is scoped to the account, not the site: an
+//     API token is valid for every site on the account (its own settings page
+//     says so), and confirmed by observation on 2026-07-27 — exporting a
+//     second, never-before-exported site immediately after the first still
+//     returned 429, with the same rate-limit-reset countdown the first site's
+//     response carried. The window is a fixed deadline anchored to that first
+//     export, not a rolling one: two 429s 321s apart reported reset values of
+//     1551s and 1230s, a difference of exactly the elapsed time.
+//   - the 429 body's "try again in ..." duration is mirrored in response
+//     headers on every export call, 2xx or not: x-rate-limit-limit,
+//     x-rate-limit-remaining, x-rate-limit-reset, and (429 only) retry-after
 //   - authenticated requests intermittently return 404, then succeed on retry
 package goatcounter
 
@@ -60,6 +71,10 @@ type Export struct {
 // RateLimitError reports the hourly export budget being spent. This is a
 // normal operating state for quinto, not a failure — callers should tell the
 // user when the next sync is possible rather than treating it as an error.
+//
+// The budget is per account, not per site (see the package comment) — a
+// RateLimitError from one site means every site on the account is blocked
+// until RetryAfter elapses, not just this one.
 type RateLimitError struct {
 	RetryAfter time.Duration
 }

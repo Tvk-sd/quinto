@@ -129,8 +129,9 @@ split is the whole design, and it buys three things:
 
 The cost is that the numbers are as fresh as your last sync, which is why every
 screen states its age (`synced 4m ago`). GoatCounter allows roughly one export
-an hour, so syncing is something you do occasionally — automatic syncing on
-launch would just walk into the rate limit.
+an hour **per account, shared across every site on it** — not one per site —
+so syncing is something you do occasionally, and automatic syncing on launch
+would just walk into the rate limit.
 
 `sync` fetches only what is new; it remembers where it left off.
 
@@ -377,7 +378,11 @@ someone threw away for you.
 
 - **Bot classification is GoatCounter's**, not ours. It is good, and it is not
   ours to improve — quinto stores their verdict rather than second-guessing it.
-- **One sync per hour**, imposed upstream.
+- **One sync per hour, per account** — imposed upstream, and shared across
+  every site on the account, not budgeted separately per site. Confirmed by
+  observation on 2026-07-27: exporting a second, untouched site immediately
+  after the first returned `429` with the same reset countdown as the first
+  site's own response headers.
 - **Sessions rotate daily by design.** GoatCounter's session identifier is a
   salted hash that changes every day so visitors cannot be tracked across
   days — which is why it needs no consent banner. A visit spanning midnight
