@@ -143,6 +143,40 @@ quinto sync      # when you want fresher numbers
 
 There is no daemon and no background process.
 
+The interface is a terminal UI, and that needs a real terminal — it refuses to
+start over a pipe, inside a script, or wherever else there's no TTY to attach
+to, with an error about `/dev/tty` that won't mean anything if you haven't hit
+it before. `quinto list` is the same data without that requirement: recent
+visits as a plain table, printed once and done, so a script, a CI job, or
+anything that captures stdout instead of a screen can still see your traffic.
+
+```sh
+quinto list --demo
+```
+
+```
+DEMO DATA — generated sample traffic, not a real site
+data as of 00:42 (0s ago) · 781 pageviews stored
+
+when         country  browser      referrer     pages  duration  entry
+07-27 23:43  DE       Chrome 126   direct       2      27s       /
+07-27 20:26  US       Chrome 126   LinkedIn     1      -         /
+07-27 13:51  GB       Chrome 126   LinkedIn     2      32s       /challenges
+07-27 12:50  US       Safari 17.5  GitHub       1      7s        /
+07-27 11:18  NL       Safari 17.5  Google       1      -         /work
+```
+
+And `quinto path` answers the question everything above assumes you can
+already answer — where the file actually is:
+
+```sh
+$ quinto path
+/Users/you/.local/share/quinto/quinto.db
+```
+
+That's the thing to point another tool at, back up, or delete if you want to
+start over.
+
 ## Try it in thirty seconds
 
 You do not need an analytics account to see what this is:
