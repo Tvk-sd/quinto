@@ -1,18 +1,23 @@
 # VHS tape for the README GIF — `make demo-gif` (needs: brew install vhs).
 #
-# Recorded against the demo dataset on purpose. Real traffic on a small site
-# is a handful of rows, which would undersell the tool and tell a viewer
-# nothing about how it behaves with data.
+# Recorded against a throwaway fixture (`make giffixture`), not real config:
+# several fabricated sites ("blog", "shop"), never a real account, so the
+# recording shows the start screen honestly without exposing any real
+# domain or traffic. The env exports below are typed and hidden the same
+# way the initial `clear` is — they point XDG_CONFIG_HOME/XDG_DATA_HOME at
+# the fixture rather than a real config.
 #
-# Two mistakes produced an empty first recording; both are easy to reintroduce.
-# The binary must be invoked as ./quinto, because vhs starts a plain shell with
-# no PATH entry for it. And Tab is a VHS command — Type "\t" sends a literal
-# backslash-t. When either is wrong the keystrokes land in the shell instead of
-# the app, and the GIF records nothing but a prompt.
+# Two mistakes produced an empty first recording; both are easy to
+# reintroduce. The binary must be invoked as ./quinto, because vhs starts a
+# plain shell with no PATH entry for it. And Tab is a VHS command — Type
+# "\t" sends a literal backslash-t. When either is wrong the keystrokes land
+# in the shell instead of the app, and the GIF records nothing but a prompt.
 #
-# The order below follows the app, and the app changed: quinto now opens on the
-# overview, so this starts there and tabs *into* the stream. The previous tape
-# did the reverse and would now record the two screens back to front.
+# The walkthrough now starts at the multi-site start screen (ticket 02),
+# opens a site into the overview, widens the range, toggles bots to show
+# the exclusion is visible and reversible, moves to the stream, expands a
+# visit, filters, then goes back to the start screen the same way the
+# dashboard always quits — no new keybinding, just today's q/esc.
 
 Output docs/demo.gif
 
@@ -26,33 +31,40 @@ Set TypingSpeed 55ms
 Hide
 Type "clear"
 Enter
+Type "export XDG_CONFIG_HOME=.scratch/quinto-v2/giffixtures/config"
+Enter
+Type "export XDG_DATA_HOME=.scratch/quinto-v2/giffixtures/data"
+Enter
+Type "clear"
+Enter
 Show
 
-Type "./quinto --demo"
+# Start screen: several sites, at a glance which is worth opening.
+Type "./quinto"
 Sleep 400ms
 Enter
+Sleep 2500ms
 
-# Opens on the overview: what happened, before who came.
-Sleep 3s
+# Open the top site — straight into the overview, not a raw visit list.
+Enter
+Sleep 2500ms
 
 # Widen the range — the sparkline and the numbers move together.
 Type "r"
-Sleep 3s
+Sleep 2s
+
+# Bots: hidden by default but disclosed, and the exclusion is reversible.
+Type "b"
+Sleep 1500ms
+Type "b"
+Sleep 1s
 
 # Into the stream: one row per visit.
 Tab
-Sleep 2s
+Sleep 1500ms
 
-# Walk down to a visit worth opening.
-Down@250ms 6
+Down@250ms 5
 Sleep 900ms
-
-# Expand it: the journey is the whole point of the tool.
-Enter
-Sleep 4s
-
-Down@250ms 3
-Sleep 1s
 Enter
 Sleep 3s
 
@@ -62,10 +74,13 @@ Sleep 3s
 Type "/"
 Sleep 700ms
 Type "contact"
-Sleep 4s
-
+Sleep 3500ms
 Escape
-Sleep 1500ms
+Sleep 1s
+
+# Back to the start screen — today's existing quit, not a new keybinding.
+Type "q"
+Sleep 2s
 
 Type "q"
 Sleep 1s
