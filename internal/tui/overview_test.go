@@ -28,6 +28,26 @@ func TestOverviewShowsHeadlineNumbers(t *testing.T) {
 	}
 }
 
+// The overview's own bot label must agree with the header's — otherwise
+// pressing b makes the screen contradict itself: "bot visits shown" up top,
+// "bots hidden" in the stat row, at the same time.
+func TestOverviewBotsLabelTracksShowBots(t *testing.T) {
+	m := overviewModel(t)
+	if strings.Contains(m.render(), "bots shown") {
+		t.Error("bots are hidden by default; should not say \"bots shown\" yet")
+	}
+
+	updated, _ := m.Update(tea.KeyPressMsg{Code: 'b', Text: "b"})
+	m = updated.(*Model)
+	out := m.render()
+	if !strings.Contains(out, "bots shown") {
+		t.Error("after pressing b, the stat row should say \"bots shown\"")
+	}
+	if strings.Contains(out, "bots hidden") {
+		t.Error("after pressing b, the stat row should not still say \"bots hidden\"")
+	}
+}
+
 // Bounce is reported as a count over its denominator, not a percentage. At
 // low traffic a rate implies precision the sample cannot support.
 func TestBounceIsShownWithItsDenominator(t *testing.T) {

@@ -63,12 +63,20 @@ func (m *Model) overviewView() string {
 
 	// Headline numbers. Bounces are shown as a count with its denominator
 	// rather than a rate, so a reader can see how thin the base is.
+	//
+	// The bots label tracks m.showBots rather than always saying "hidden" —
+	// otherwise pressing b contradicts itself: the header already says
+	// "bot visits shown" while this row still claimed they were hidden.
+	botsLabel := "bots hidden"
+	if m.showBots {
+		botsLabel = "bots shown"
+	}
 	b.WriteString(m.statRow([][2]string{
 		{"visitors", fmt.Sprint(o.Visitors)},
 		{"pageviews", fmt.Sprint(o.Pageviews)},
 		{"events", fmt.Sprint(o.Events)},
 		{"single-page", fmt.Sprintf("%d/%d", o.SinglePageVisits, o.Visitors)},
-		{"bots hidden", fmt.Sprint(o.Bots)},
+		{botsLabel, fmt.Sprint(o.Bots)},
 	}))
 	b.WriteString("\n\n")
 
